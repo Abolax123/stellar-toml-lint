@@ -1,7 +1,7 @@
 {
   "name": "stellar-toml-lint",
   "version": "0.1.0",
-  "description": "Offline SEP-1 linter for stellar.toml — validate your Stellar Info File before you deploy it.",
+  "description": "Offline SEP-1 linter for stellar.toml \u2014 validate your Stellar Info File before you deploy it.",
   "keywords": [
     "stellar",
     "sep-1",
@@ -52,11 +52,11 @@
     "packaging/homebrew/stellar-toml-lint.rb"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && npm run build:browser",
+    "build": "node api.js && tsc -p tsconfig.build.json && npm run build:browser",
     "build:browser": "node scripts/build-browser.js",
     "build:vscode": "tsc -p editors/vscode/tsconfig.json",
     "package:vscode": "npm run build:vscode && npx --prefix editors/vscode vsce package --out ../../stellar-toml-lint.vsix",
-    "dev": "tsc -p tsconfig.build.json --watch",
+    "dev": "node api.js && tsc -p tsconfig.build.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
