@@ -303,6 +303,9 @@ failure.
 | `--soroban-rent-audit`      | With `--check-network`: audit contract instance storage footprint, TTL expiration, and projected ledger rent costs                                                                                          |
 | `--soroban-instance-storage-audit` | With `--check-network`: audit Soroban contract instance storage key-value integrity (admin address type, decimal matching display_decimals)                                                               |
 | `--serve-mock [port]`       | Serve the file and mock SEP-10/24/38 endpoints on localhost (default port `8080`); see [mock server](#local-mock-server-for-wallet-and-frontend-development)                                                |
+| `--serve-metrics [port]`    | Serve Prometheus metrics on `GET /metrics` (default port `9464`); works with `--monitor` or standalone; see [Prometheus metrics exporter](#prometheus-metrics-exporter)                                      |
+| `--sla-store <file>`        | With `--monitor`: record every probe into a JSON SLA database and emit `monitor/sla-below-threshold` when the 30-day availability drops below 99.5%; see [SLA tracking](#sla-tracking-and-availability-metrics) |
+| `--generate-jsonld [out.json]` | Generate Schema.org JSON-LD structured data (prints to stdout with no file); see [JSON-LD structured data](#schemaorg-json-ld-structured-data)                                                           |
 | `--mock-fixtures <dir>`     | Serve network checks from recorded JSON fixtures under `<dir>`, never the network                                                                                                                           |
 | `--webhook-slack <url>`     | POST a Slack Block Kit card with the run summary                                                                                                                                                            |
 | `--webhook-discord <url>`   | POST a Discord embed with the run summary                                                                                                                                                                   |
@@ -636,10 +639,10 @@ into a failing build.
 $ stellar-toml-lint --domain example.com --monitor --interval 500 --on-change-webhook "$WEBHOOK_URL"
 ```
 
-The `--monitor` flag starts a polling daemon that fetches the target URL at the specified
-interval (default 300 ms). Each response is hashed with SHA-256 and compared against the previous
-response. When a change is detected, a JSON diff payload is POSTed to the `--on-change-webhook`
-endpoint containing:
+The `--monitor` flag starts a polling daemon that reads the target — the `--domain` URL, a local
+file, or `-` for stdin — at the specified interval (default 300 ms). Each response is hashed with
+SHA-256 and compared against the previous response. When a change is detected, a JSON diff payload
+is POSTed to the `--on-change-webhook` endpoint containing:
 
 ```json
 {
@@ -653,6 +656,53 @@ endpoint containing:
 
 The daemon uses exponential backoff on transient network failures, capping at 30 seconds.
 Pass `--interval <ms>` to control the polling frequency. Send `SIGINT` to stop the daemon.
+
+The daemon samples each poll's latency, HTTP status, and any transport error — at most once a
+minute, so a 300 ms change-poll interval does not flood the history — and doubles as an uptime
+probe. With `--sla-store <file>` the history is persisted as JSON (atomic temp-file + rename
+writes, so a crash cannot corrupt it), `Ctrl+C` leaves an inspectable file, and the next start
+resumes the same history:
+
+```console
+$ stellar-toml-lint --domain example.com --monitor --sla-store sla.json
+```
+
+#### SLA tracking and availability metrics
+
+`--sla-store` turns the probe history into the reliability numbers a listing review rates:
+availability (`successful / total × 100`), MTBF (mean time between failures), and MTTR (mean time
+to repair) for rolling 7-, 30-, and 90-day windows. The 30-day window is the one directories
+quote, so when it falls below **99.5 %** the run emits `monitor/sla-below-threshold` (error):
+
+```console
+$ stellar-toml-lint --domain example.com --monitor --sla-store sla.json
+monitor/sla-below-threshold  error  30-day availability is 98.7%, below the 99.5% SLA floor (4 of 301 probes failed)
+```
+
+A 2xx or 3xx response counts as available; a 4xx/5xx or transport error counts as a failure.
+
+### Prometheus metrics exporter
+
+`--serve-metrics [port]` exposes a `GET /metrics` endpoint in the Prometheus text exposition
+format (`text/plain; version=0.0.4`) on Node's built-in `node:http` — no Prometheus client
+dependency to audit. It works standalone or together with `--monitor`:
+
+```console
+$ stellar-toml-lint --domain example.com --monitor --interval 500 --serve-metrics
+stellar-toml-lint metrics exporter listening on http://localhost:9464/metrics
+```
+
+| Metric                                | Labels             | Meaning                                                                       |
+| ------------------------------------- | ------------------ | ----------------------------------------------------------------------------- |
+| `stellar_toml_compliance_score_ratio` | —                  | SEP-1 wallet listing readiness score as a 0.0–1.0 ratio                       |
+| `stellar_toml_tls_cert_expiry_seconds`| `endpoint`         | Seconds until each declared endpoint's TLS certificate expires (negative once expired) |
+| `stellar_toml_rule_violations`        | `rule_id`,`severity` | Current lint findings                                                        |
+| `stellar_toml_validator_online_status`| `validator`        | `1` when a declared `[[VALIDATORS]].HOST` port accepts TCP, `0` otherwise     |
+
+The snapshot is collected lazily on every scrape, so Prometheus — not the linter — controls how
+often the certificate and validator probes run, and the exported score always matches the latest
+lint of the monitored body. The port defaults to `9464`; `--serve-metrics 0` picks an ephemeral one.
+The endpoint also answers `HEAD` and rejects other paths with `404` / methods with `405`.
 
 ### Local mock server for wallet and frontend development
 
@@ -690,6 +740,58 @@ STELLAR_TOML_MOCK_SIGNING_SECRET=S... stellar-toml-lint --serve-mock 9000 stella
 
 Use a throwaway testnet key for this; never a production signing secret. `Ctrl+C` (`SIGINT`) or
 `SIGTERM` closes the server and exits `0`.
+
+### Schema.org JSON-LD structured data
+
+`--generate-jsonld [out.json]` converts the file into Schema.org JSON-LD, so an anchor's
+organization metadata and issued currencies become machine-readable structured data that search
+engines index automatically. Without a file the document is printed to stdout (replacing the lint
+report, exactly like `--export-ap-config`):
+
+```console
+$ stellar-toml-lint --generate-jsonld structured-data.json stellar.toml
+```
+
+```json
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "#organization",
+      "name": "Example Anchor",
+      "url": "https://example.com",
+      "address": { "@type": "PostalAddress", "streetAddress": "1 Example Plaza" },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "email": "support@example.com"
+      },
+      "member": [{ "@type": "Person", "name": "Ada Lovelace" }]
+    },
+    {
+      "@type": ["FinancialProduct", "Currency"],
+      "@id": "#currency-usd-0",
+      "name": "USD",
+      "identifier": "USD",
+      "category": "fiat",
+      "provider": { "@id": "#organization" },
+      "additionalProperty": [
+        { "@type": "PropertyValue", "name": "issuer", "propertyID": "stellar:issuer", "value": "G..." }
+      ]
+    }
+  ]
+}
+```
+
+`[DOCUMENTATION]` maps to the `Organization` node (`ORG_PHYSICAL_ADDRESS` → `PostalAddress`,
+`ORG_SUPPORT_EMAIL` → `ContactPoint`, social handles → `sameAs` URLs), `[[PRINCIPALS]]` become
+`Person` members, and every `[[CURRENCIES]]` entry becomes a `FinancialProduct`/`Currency` node
+cross-linked to the organization. Fields Schema.org has no equivalent for (`issuer`, `contract`,
+`status`, `anchor_asset_type`) travel as `PropertyValue` nodes instead of being dropped. The
+generated document is validated before it is written: a wrong context, an unknown `@type`, a
+missing required property, or an unserializable value exits `2` rather than publishing invisible
+structured data.
 
 ### Code Migration Engine
 
@@ -1103,7 +1205,8 @@ $ stellar-toml-lint stellar.toml --silent-success
 The exit code is unchanged, so a hook only has to look at `$?`. The moment a single diagnostic exists
 the normal report comes back — errors and warnings are never hidden — and in a multi-file run only the
 files with findings are printed. `--silent-success` is a no-op for output written by the generator flags
-(`--graph`, `--generate-openapi`, `--export-ap-config`), which are explicit requests for stdout.
+(`--graph`, `--generate-openapi`, `--export-ap-config`, `--generate-jsonld`), which are explicit requests
+for stdout.
 
 ### GitHub step summaries
 

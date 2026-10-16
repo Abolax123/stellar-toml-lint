@@ -40,6 +40,8 @@ import { quorumAuditRules } from '../validators/quorum.js';
 import { dnsIntegrityRules } from '../security/dns-integrity.js';
 import { certExpiryRules } from '../network/cert-expiry.js';
 import { ipv6AuditorRules } from '../network/ipv6-auditor.js';
+import { httpVersionAuditorRules } from '../network/http-version-auditor.js';
+import { slaCalculatorRules } from '../monitor/sla-calculator.js';
 import { peerPortRule } from '../validators/net-probe.js';
 import { anchorDiscoveryRules } from '../validators/anchorDiscovery.js';
 import { fixedSupplyLockRules } from './fixed-supply-audit.js';
@@ -127,6 +129,10 @@ export const allRules: Rule[] = [
   ...dnsIntegrityRules,
   ...certExpiryRules,
   ...ipv6AuditorRules,
+  // `httpVersionAuditorRules` is folded into `generalRules` (see
+  // src/rules/general.ts, where the issue wires it), so it is exported rather
+  // than spread again here.
+  ...slaCalculatorRules,
   ...anchorDiscoveryRules,
   peerPortRule,
   ...circularPointerRules,
@@ -179,6 +185,8 @@ export {
   dnsIntegrityRules,
   certExpiryRules,
   ipv6AuditorRules,
+  httpVersionAuditorRules,
+  slaCalculatorRules,
   anchorDiscoveryRules,
   peerPortRule,
   circularPointerRules,
