@@ -197,7 +197,8 @@ describe('Account data auditor', () => {
 
   describe('auditTomlAccountData', () => {
     it('audits SIGNING_KEY and ACCOUNTS entries', async () => {
-      const tomlContent = 'NETWORK_PASSPHRASE="Test SDF Network ; September 2015"\nSIGNING_KEY="GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"\nACCOUNTS=["GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBZU"]\n';
+      const tomlContent =
+        'NETWORK_PASSPHRASE="Test SDF Network ; September 2015"\nSIGNING_KEY="GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"\nACCOUNTS=["GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBZU"]\n';
       const { createHash } = await import('node:crypto');
       const expectedHash = createHash('sha256').update(tomlContent, 'utf8').digest('hex');
 
@@ -252,7 +253,7 @@ describe('Account data auditor', () => {
         }),
       });
 
-      const diagnostics = await auditTomlAccountData(doc, tomlContent, mockFetch);
+      await auditTomlAccountData(doc, tomlContent, mockFetch);
       // Only the valid account should be checked
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });

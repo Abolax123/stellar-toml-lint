@@ -37,7 +37,10 @@ function inSyncEntry(): Record<string, unknown> {
   };
 }
 
-function options(fetchImpl: typeof fetch, extra: Partial<AnchorDiscoveryOptions> = {}): AnchorDiscoveryOptions {
+function options(
+  fetchImpl: typeof fetch,
+  extra: Partial<AnchorDiscoveryOptions> = {},
+): AnchorDiscoveryOptions {
   return { fetchImpl, domain: 'example.com', ...extra };
 }
 
@@ -81,7 +84,9 @@ describe('anchor discovery and directory listing compliance validator (#397)', (
 
   it('asserts profile-out-of-sync when directory accounts are missing from ACCOUNTS', async () => {
     const other = 'GDDOZFWVFZVVRG644A2XKBR5L53OLFIQKACZDSJIOI2HZVQ5H645NJKI';
-    const fetchImpl = vi.fn(async () => records([{ ...inSyncEntry(), address: other }])) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(async () =>
+      records([{ ...inSyncEntry(), address: other }]),
+    ) as unknown as typeof fetch;
 
     const diagnostics = await validateAnchorDiscovery(doc, options(fetchImpl));
 
@@ -142,7 +147,9 @@ describe('anchor discovery and directory listing compliance validator (#397)', (
     const diagnostics = await validateAnchorDiscovery(
       doc,
       options(fetchImpl, {
-        directories: [{ name: 'Internal Registry', url: 'https://registry.internal.example/directory' }],
+        directories: [
+          { name: 'Internal Registry', url: 'https://registry.internal.example/directory' },
+        ],
       }),
     );
 
@@ -170,7 +177,9 @@ describe('anchor discovery and directory listing compliance validator (#397)', (
   });
 
   it('respects rule severity overrides', async () => {
-    const fetchImpl = vi.fn(async () => records([{ ...inSyncEntry(), url: 'https://old.example.com' }])) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(async () =>
+      records([{ ...inSyncEntry(), url: 'https://old.example.com' }]),
+    ) as unknown as typeof fetch;
 
     const diagnostics = await validateAnchorDiscovery(
       doc,
@@ -187,14 +196,15 @@ describe('anchor discovery and directory listing compliance validator (#397)', (
     expect(parseDirectoryRecords({ _embedded: { records: [] } })).toEqual([]);
     expect(parseDirectoryRecords({ nope: true })).toBeUndefined();
 
-    const [entry] = parseDirectoryRecords([
-      {
-        domain: 'c.example',
-        tags: ['anchor', 'sep6'],
-        seps: ['8'],
-        capabilities: { sep24: true, sep38: false },
-      },
-    ]) ?? [];
+    const [entry] =
+      parseDirectoryRecords([
+        {
+          domain: 'c.example',
+          tags: ['anchor', 'sep6'],
+          seps: ['8'],
+          capabilities: { sep24: true, sep38: false },
+        },
+      ]) ?? [];
     expect(entry?.seps).toEqual(['24', '6', '8']);
     expect(entry?.tags).toEqual(['anchor', 'sep6']);
     expect(DEFAULT_DIRECTORY_REGISTRIES.length).toBeGreaterThan(0);

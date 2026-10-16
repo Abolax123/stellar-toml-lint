@@ -586,8 +586,12 @@ async function main(argv: string[]): Promise<number> {
               ? await verifySep30(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.verifySep8 ? await verifySep8(domainResult.parsed, fetchImpl, { rules }) : []),
-            ...(cli.verifySep8Webhook ? await verifySep8Webhook(domainResult.parsed, fetchImpl, { rules }) : []),
-            ...(cli.verifyIpfs ? await validateIpfsMetadata(domainResult.parsed, fetchImpl, { rules }) : []),
+            ...(cli.verifySep8Webhook
+              ? await verifySep8Webhook(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyIpfs
+              ? await validateIpfsMetadata(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(cli.verifySep38
               ? await verifySep38(domainResult.parsed, fetchImpl, { rules })
               : []),
@@ -679,7 +683,9 @@ async function main(argv: string[]): Promise<number> {
               : []),
           ];
           // Audit on-chain account data entries for SIGNING_KEY and ACCOUNTS (domain path)
-          const domainTomlSource = await (await fetchImpl(`https://${cli.domain}/.well-known/stellar.toml`)).text();
+          const domainTomlSource = await (
+            await fetchImpl(`https://${cli.domain}/.well-known/stellar.toml`)
+          ).text();
           networkDiagnostics.push(
             ...(await auditTomlAccountData(domainResult.parsed, domainTomlSource, fetchImpl, {
               rules,
@@ -1215,8 +1221,7 @@ async function main(argv: string[]): Promise<number> {
 
     // A generator writing its document to stdout replaces the lint report;
     // appending the two would produce an unparseable stream for both.
-    const emitsOnlyDocument =
-      cli.exportApConfig === true || cli.generateJsonLd === '-';
+    const emitsOnlyDocument = cli.exportApConfig === true || cli.generateJsonLd === '-';
 
     if (!emitsOnlyDocument && dashboard) {
       await runDashboard(

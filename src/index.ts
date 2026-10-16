@@ -109,7 +109,12 @@ export {
   ipfsMetadataRuleIds,
   DEFAULT_IPFS_GATEWAYS,
 } from './validators/ipfsMetadata.js';
-export type { IpfsMetadataValidatorOptions, ParsedCid, CidVerificationResult, GatewayResult } from './validators/ipfsMetadata.js';
+export type {
+  IpfsMetadataValidatorOptions,
+  ParsedCid,
+  CidVerificationResult,
+  GatewayResult,
+} from './validators/ipfsMetadata.js';
 export { createFixtureFetch, fixtureCandidates, MissingFixtureError } from './mock-fixtures.js';
 export type { FixtureFile } from './mock-fixtures.js';
 export {

@@ -56,32 +56,35 @@ export default function EditorComponent({ onDiagnostics }: EditorProps) {
     };
   }, []);
 
-  const handleMount = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
-    editorRef.current = editor;
-    modelRef.current = editor.getModel();
+  const handleMount = useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor) => {
+      editorRef.current = editor;
+      modelRef.current = editor.getModel();
 
-    workerRef.current = new Worker(new URL('../workers/linter.worker.ts', import.meta.url), {
-      type: 'module',
-    });
+      workerRef.current = new Worker(new URL('../workers/linter.worker.ts', import.meta.url), {
+        type: 'module',
+      });
 
-    workerRef.current.onmessage = (e: MessageEvent) => {
-      const { type, result } = e.data;
-      if (type === 'result') {
-        const diags: Diagnostic[] = result.diagnostics ?? [];
-        onDiagnostics(diags);
-        if (provider) {
-          setDiagnostics(diags);
+      workerRef.current.onmessage = (e: MessageEvent) => {
+        const { type, result } = e.data;
+        if (type === 'result') {
+          const diags: Diagnostic[] = result.diagnostics ?? [];
+          onDiagnostics(diags);
+          if (provider) {
+            setDiagnostics(diags);
+          }
+          setLoading(false);
+        } else if (type === 'error') {
+          setLoading(false);
         }
-        setLoading(false);
-      } else if (type === 'error') {
-        setLoading(false);
-      }
-    };
+      };
 
-    if (provider) {
-      provider.bindMonaco(editor, editor.getModel());
-    }
-  }, [onDiagnostics, provider, setDiagnostics]);
+      if (provider) {
+        provider.bindMonaco(editor, editor.getModel());
+      }
+    },
+    [onDiagnostics, provider, setDiagnostics],
+  );
 
   const handleChange = useCallback((value: string | undefined) => {
     if (!value || !workerRef.current) return;
@@ -125,7 +128,9 @@ export default function EditorComponent({ onDiagnostics }: EditorProps) {
               {collabEnabled ? 'Connected' : 'Connect'}
             </button>
             {collabEnabled && (
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span
+                className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+              />
             )}
           </div>
         </div>

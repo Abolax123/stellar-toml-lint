@@ -25,19 +25,27 @@ function fetchServer(routes: Routes): typeof fetch {
     const method = (init?.method ?? 'GET').toUpperCase();
 
     if (method === 'POST' && url.pathname.endsWith('/transactions/deposit/interactive')) {
-      return (routes.interactiveDeposit ?? (() => jsonResponse({
-        id: 'txn-1',
-        url: 'https://example.com/interactive',
-      })))();
+      return (
+        routes.interactiveDeposit ??
+        (() =>
+          jsonResponse({
+            id: 'txn-1',
+            url: 'https://example.com/interactive',
+          }))
+      )();
     }
 
     if (method === 'GET' && url.pathname.includes('/transactions/')) {
       const id = url.pathname.split('/transactions/')[1] ?? '';
-      return (routes.getTransaction ?? (() => jsonResponse({
-        id: 'txn-1',
-        status: 'pending',
-        amount_fee: { fixed: 1.5, percent: 0.5 },
-      })))(id);
+      return (
+        routes.getTransaction ??
+        (() =>
+          jsonResponse({
+            id: 'txn-1',
+            status: 'pending',
+            amount_fee: { fixed: 1.5, percent: 0.5 },
+          }))
+      )(id);
     }
 
     throw new Error(`unexpected request ${method} ${url}`);
@@ -49,22 +57,31 @@ describe('SEP-24 transaction fee quote lock verifier', () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
       CURRENCIES: [
-        { code: 'USD', issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', is_asset_anchored: true },
+        {
+          code: 'USD',
+          issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          is_asset_anchored: true,
+        },
       ],
     };
 
     let pollCount = 0;
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
-      getTransaction: () => {
-        pollCount++;
-        return jsonResponse({
-          id: 'txn-1',
-          status: pollCount >= 3 ? 'completed' : 'pending',
-          amount_fee: { fixed: 1.5, percent: 0.5, minimum: 0.5 },
-        });
-      },
-    }), { pollIntervalMs: 10, pollDurationMs: 100 });
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () =>
+          jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
+        getTransaction: () => {
+          pollCount++;
+          return jsonResponse({
+            id: 'txn-1',
+            status: pollCount >= 3 ? 'completed' : 'pending',
+            amount_fee: { fixed: 1.5, percent: 0.5, minimum: 0.5 },
+          });
+        },
+      }),
+      { pollIntervalMs: 10, pollDurationMs: 100 },
+    );
 
     expect(diagnostics).toEqual([]);
   });
@@ -73,18 +90,28 @@ describe('SEP-24 transaction fee quote lock verifier', () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
       CURRENCIES: [
-        { code: 'EUR', issuer: 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF', is_asset_anchored: true },
+        {
+          code: 'EUR',
+          issuer: 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF',
+          is_asset_anchored: true,
+        },
       ],
     };
 
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
-      getTransaction: () => jsonResponse({
-        id: 'txn-1',
-        status: 'completed',
-        amount_fee: { fixed: 2.0, percent: 0.3 },
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () =>
+          jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
+        getTransaction: () =>
+          jsonResponse({
+            id: 'txn-1',
+            status: 'completed',
+            amount_fee: { fixed: 2.0, percent: 0.3 },
+          }),
       }),
-    }), { pollIntervalMs: 10, pollDurationMs: 100 });
+      { pollIntervalMs: 10, pollDurationMs: 100 },
+    );
 
     expect(diagnostics).toEqual([]);
   });
@@ -93,29 +120,38 @@ describe('SEP-24 transaction fee quote lock verifier', () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
       CURRENCIES: [
-        { code: 'USD', issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', is_asset_anchored: true },
+        {
+          code: 'USD',
+          issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          is_asset_anchored: true,
+        },
       ],
     };
 
     let pollCount = 0;
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
-      getTransaction: () => {
-        pollCount++;
-        if (pollCount === 1) {
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () =>
+          jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
+        getTransaction: () => {
+          pollCount++;
+          if (pollCount === 1) {
+            return jsonResponse({
+              id: 'txn-1',
+              status: 'pending',
+              amount_fee: { fixed: 1.5, percent: 0.5 },
+            });
+          }
           return jsonResponse({
             id: 'txn-1',
             status: 'pending',
-            amount_fee: { fixed: 1.5, percent: 0.5 },
+            amount_fee: { fixed: 2.5, percent: 0.5 },
           });
-        }
-        return jsonResponse({
-          id: 'txn-1',
-          status: 'pending',
-          amount_fee: { fixed: 2.5, percent: 0.5 },
-        });
-      },
-    }), { pollIntervalMs: 10, pollDurationMs: 100 });
+        },
+      }),
+      { pollIntervalMs: 10, pollDurationMs: 100 },
+    );
 
     const hits = diagnostics.filter((d) => d.rule === QUOTE_FEE_INSTABILITY_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -129,29 +165,38 @@ describe('SEP-24 transaction fee quote lock verifier', () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
       CURRENCIES: [
-        { code: 'USD', issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', is_asset_anchored: true },
+        {
+          code: 'USD',
+          issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          is_asset_anchored: true,
+        },
       ],
     };
 
     let pollCount = 0;
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
-      getTransaction: () => {
-        pollCount++;
-        if (pollCount === 1) {
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () =>
+          jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
+        getTransaction: () => {
+          pollCount++;
+          if (pollCount === 1) {
+            return jsonResponse({
+              id: 'txn-1',
+              status: 'pending',
+              amount_fee: { percent: 0.5 },
+            });
+          }
           return jsonResponse({
             id: 'txn-1',
             status: 'pending',
-            amount_fee: { percent: 0.5 },
+            amount_fee: { percent: 1.0 },
           });
-        }
-        return jsonResponse({
-          id: 'txn-1',
-          status: 'pending',
-          amount_fee: { percent: 1.0 },
-        });
-      },
-    }), { pollIntervalMs: 10, pollDurationMs: 100 });
+        },
+      }),
+      { pollIntervalMs: 10, pollDurationMs: 100 },
+    );
 
     const hits = diagnostics.filter((d) => d.rule === QUOTE_FEE_INSTABILITY_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -163,29 +208,38 @@ describe('SEP-24 transaction fee quote lock verifier', () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
       CURRENCIES: [
-        { code: 'USD', issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', is_asset_anchored: true },
+        {
+          code: 'USD',
+          issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          is_asset_anchored: true,
+        },
       ],
     };
 
     let pollCount = 0;
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
-      getTransaction: () => {
-        pollCount++;
-        if (pollCount === 1) {
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () =>
+          jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
+        getTransaction: () => {
+          pollCount++;
+          if (pollCount === 1) {
+            return jsonResponse({
+              id: 'txn-1',
+              status: 'pending',
+              amount_fee: { fixed: 1.0, minimum: 0.5 },
+            });
+          }
           return jsonResponse({
             id: 'txn-1',
             status: 'pending',
-            amount_fee: { fixed: 1.0, minimum: 0.5 },
+            amount_fee: { fixed: 1.0, minimum: 1.0 },
           });
-        }
-        return jsonResponse({
-          id: 'txn-1',
-          status: 'pending',
-          amount_fee: { fixed: 1.0, minimum: 1.0 },
-        });
-      },
-    }), { pollIntervalMs: 10, pollDurationMs: 100 });
+        },
+      }),
+      { pollIntervalMs: 10, pollDurationMs: 100 },
+    );
 
     const hits = diagnostics.filter((d) => d.rule === QUOTE_FEE_INSTABILITY_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -208,36 +262,56 @@ describe('SEP-24 transaction fee quote lock verifier', () => {
   it('stays silent when interactive deposit fails', async () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
-      CURRENCIES: [{ code: 'USD', issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', is_asset_anchored: true }],
+      CURRENCIES: [
+        {
+          code: 'USD',
+          issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          is_asset_anchored: true,
+        },
+      ],
     };
 
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ error: 'Unauthorized' }, 401),
-    }));
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () => jsonResponse({ error: 'Unauthorized' }, 401),
+      }),
+    );
     expect(diagnostics).toEqual([]);
   });
 
   it('honours severity overrides', async () => {
     const doc = {
       TRANSFER_SERVER_SEP0024: TRANSFER_SERVER,
-      CURRENCIES: [{ code: 'USD', issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', is_asset_anchored: true }],
+      CURRENCIES: [
+        {
+          code: 'USD',
+          issuer: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          is_asset_anchored: true,
+        },
+      ],
     };
 
     let pollCount = 0;
-    const diagnostics = await verifySep24QuoteLock(doc, fetchServer({
-      interactiveDeposit: () => jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
-      getTransaction: () => {
-        pollCount++;
-        if (pollCount === 1) {
-          return jsonResponse({ id: 'txn-1', status: 'pending', amount_fee: { fixed: 1.5 } });
-        }
-        return jsonResponse({ id: 'txn-1', status: 'pending', amount_fee: { fixed: 2.5 } });
+    const diagnostics = await verifySep24QuoteLock(
+      doc,
+      fetchServer({
+        interactiveDeposit: () =>
+          jsonResponse({ id: 'txn-1', url: 'https://example.com/interactive' }),
+        getTransaction: () => {
+          pollCount++;
+          if (pollCount === 1) {
+            return jsonResponse({ id: 'txn-1', status: 'pending', amount_fee: { fixed: 1.5 } });
+          }
+          return jsonResponse({ id: 'txn-1', status: 'pending', amount_fee: { fixed: 2.5 } });
+        },
+      }),
+      {
+        rules: { [QUOTE_FEE_INSTABILITY_RULE]: 'off' },
+        pollIntervalMs: 10,
+        pollDurationMs: 100,
       },
-    }), {
-      rules: { [QUOTE_FEE_INSTABILITY_RULE]: 'off' },
-      pollIntervalMs: 10,
-      pollDurationMs: 100,
-    });
+    );
     expect(diagnostics.filter((d) => d.rule === QUOTE_FEE_INSTABILITY_RULE)).toEqual([]);
   });
 });

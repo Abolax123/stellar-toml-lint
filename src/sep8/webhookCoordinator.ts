@@ -136,6 +136,19 @@ export function isValidTransactionXdr(txXdrString: string): boolean {
 }
 
 /**
+ * Last 4 bytes of the approval server's public key (the signature hint), or
+ * undefined when the key is unknown or not a valid Ed25519 public key.
+ */
+function approvalServerPublicKeyHint(publicKey: string): Buffer | undefined {
+  if (!isString(publicKey) || publicKey.trim() === '') return undefined;
+  try {
+    return Keypair.fromPublicKey(publicKey.trim()).rawPublicKey().subarray(28);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Verifies that a transaction envelope has been co-signed by the approval server.
  * Checks that the original payment operation is intact and only legitimate
  * approval co-signatures are appended.
@@ -152,7 +165,7 @@ export function verifyCoSignedTransaction(
     // Compare the transaction bodies (operations, fee, seqnum, etc. should be identical)
     const originalTx = originalEnv.v1()?.tx() ?? originalEnv.v0()?.tx();
     const revisedTx = revisedEnv.v1()?.tx() ?? revisedEnv.v0()?.tx();
-    
+
     if (!originalTx || !revisedTx) {
       return { valid: false, reason: 'Could not extract transaction from envelope' };
     }
@@ -161,14 +174,20 @@ export function verifyCoSignedTransaction(
     const originalOps = originalTx.operations();
     const revisedOps = revisedTx.operations();
     if (originalOps.length !== revisedOps.length) {
-      return { valid: false, reason: 'Operation count differs between original and revised transaction' };
+      return {
+        valid: false,
+        reason: 'Operation count differs between original and revised transaction',
+      };
     }
     for (let i = 0; i < originalOps.length; i++) {
       const origOp = originalOps[i]!;
       const revOp = revisedOps[i]!;
       // Compare operation bodies by serializing to XDR
       if (origOp.body().toXDR('base64') !== revOp.body().toXDR('base64')) {
-        return { valid: false, reason: `Operation ${i} body differs between original and revised transaction` };
+        return {
+          valid: false,
+          reason: `Operation ${i} body differs between original and revised transaction`,
+        };
       }
     }
 
@@ -177,12 +196,15 @@ export function verifyCoSignedTransaction(
     const originalV1 = originalEnv.v1();
     const revisedV0 = revisedEnv.v0();
     const revisedV1 = revisedEnv.v1();
-    
+
     const originalSigs = originalV0?.signatures() ?? originalV1?.signatures() ?? [];
     const revisedSigs = revisedV0?.signatures() ?? revisedV1?.signatures() ?? [];
 
     if (revisedSigs.length <= originalSigs.length) {
-      return { valid: false, reason: 'Revised transaction must have additional signatures from approval server' };
+      return {
+        valid: false,
+        reason: 'Revised transaction must have additional signatures from approval server',
+      };
     }
 
     // Verify the new signature(s) belong to the approval server
@@ -191,15 +213,24 @@ export function verifyCoSignedTransaction(
     // public key or we'd verify against a known key.
     // For now, we check that signatures were added and are valid Ed25519 signatures.
 
+    const approvalServerHint = approvalServerPublicKeyHint(approvalServerPublicKey);
     const newSigs = revisedSigs.slice(originalSigs.length);
     for (const sig of newSigs) {
-      const hint = sig.hint();
       const signature = sig.signature();
       if (signature.length !== 64) {
-        return { valid: false, reason: 'Co-signature has invalid length (expected 64 bytes for Ed25519)' };
+        return {
+          valid: false,
+          reason: 'Co-signature has invalid length (expected 64 bytes for Ed25519)',
+        };
       }
-      // The hint should match the approval server's public key (last 4 bytes)
-      // This is a best-effort check
+      // The hint is the last 4 bytes of the signer's public key. When the
+      // approval server key is known, require the hint to match it.
+      if (approvalServerHint !== undefined && !sig.hint().equals(approvalServerHint)) {
+        return {
+          valid: false,
+          reason: 'Co-signature hint does not match the approval server public key',
+        };
+      }
     }
 
     return { valid: true };
@@ -226,7 +257,7 @@ async function auditApprovalServer(
   const maxLatencyMs = options.maxLatencyMs ?? 5_000;
 
   // Build synthetic transaction
-  const { txXdr, sourcePublicKey, txHash } = buildSyntheticSep8Transaction(
+  const { txXdr, txHash } = buildSyntheticSep8Transaction(
     currencyCode,
     currencyIssuer,
     networkPassphrase,
@@ -283,7 +314,8 @@ async function auditApprovalServer(
           message: `SEP-8 approval server at "${approvalServerUrl}" returned HTTP ${response.status} (attempt ${attempt + 1})`,
           path,
           helpUri: SEP8_SPEC_URL,
-          suggestion: 'Ensure the approval server responds with HTTP 200 and a valid SEP-8 JSON payload.',
+          suggestion:
+            'Ensure the approval server responds with HTTP 200 and a valid SEP-8 JSON payload.',
         });
       }
       return diagnostics;
@@ -325,7 +357,8 @@ async function auditApprovalServer(
             message: `SEP-8 approval server at "${approvalServerUrl}" returned different responses for identical idempotent requests`,
             path,
             helpUri: SEP8_SPEC_URL,
-            suggestion: 'Approval server must be idempotent for duplicate submissions with the same transaction.',
+            suggestion:
+              'Approval server must be idempotent for duplicate submissions with the same transaction.',
           });
         }
         break;
@@ -397,7 +430,8 @@ async function auditApprovalServer(
             message: `SEP-8 revised transaction failed co-signature verification: ${verification.reason}`,
             path,
             helpUri: SEP8_SPEC_URL,
-            suggestion: 'The revised transaction must preserve the original payment operation and add valid approval server signatures.',
+            suggestion:
+              'The revised transaction must preserve the original payment operation and add valid approval server signatures.',
           });
         }
       }
@@ -431,7 +465,8 @@ async function auditApprovalServer(
               message: `SEP-8 success transaction failed co-signature verification: ${verification.reason}`,
               path,
               helpUri: SEP8_SPEC_URL,
-              suggestion: 'The returned transaction must preserve the original payment operation and add valid approval server signatures.',
+              suggestion:
+                'The returned transaction must preserve the original payment operation and add valid approval server signatures.',
             });
           }
         }
@@ -566,7 +601,8 @@ export const sep8WebhookRules: Rule[] = [
     id: INVALID_CO_SIGNED_TX_RULE,
     category: 'network',
     severity: 'error',
-    description: 'SEP-8 approval webhook co-signed transaction must be valid and preserve original operation',
+    description:
+      'SEP-8 approval webhook co-signed transaction must be valid and preserve original operation',
     run() {},
   },
   {

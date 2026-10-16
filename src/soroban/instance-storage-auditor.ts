@@ -14,17 +14,15 @@
  * Emits soroban/instance-storage-data-mismatch (error).
  */
 
-import { Address, xdr } from '@stellar/stellar-base';
+import { xdr } from '@stellar/stellar-base';
 import type { Diagnostic, Rule, RuleOverrides, Severity } from '../types.js';
 import { isString, isInteger } from '../predicates.js';
 import { rpcUrlFor } from '../rules/display-decimals-audit.js';
 import { contractCurrenciesOf } from '../rules/currencies.js';
-import { queryLedgerEntry, contractDataInstanceKey, type LedgerEntryResult } from './rpc.js';
+import { queryLedgerEntry, contractDataInstanceKey } from './rpc.js';
 
 export const CORRUPTED_ENTRY_RULE = 'soroban/corrupted-instance-storage-entry';
 export const DATA_MISMATCH_RULE = 'soroban/instance-storage-data-mismatch';
-
-const RPC_TIMEOUT_MS = 10_000;
 
 export interface InstanceStorageAuditorOptions {
   rules?: RuleOverrides;
@@ -80,7 +78,12 @@ export async function auditContractInstanceStorage(
   options: InstanceStorageAuditorOptions = {},
 ): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
-  const finding = (rule: string, fallback: 'error' | 'warning', detail: string, suggestion?: string): Diagnostic[] => {
+  const finding = (
+    rule: string,
+    fallback: 'error' | 'warning',
+    detail: string,
+    suggestion?: string,
+  ): Diagnostic[] => {
     const severity = severityFor(rule, fallback, options.rules);
     if (severity === undefined) return [];
     return [
@@ -95,9 +98,17 @@ export async function auditContractInstanceStorage(
     ];
   };
 
-  const instanceResult = await queryLedgerEntry(rpcUrl, contractDataInstanceKey(contractId), fetchImpl);
+  const instanceResult = await queryLedgerEntry(
+    rpcUrl,
+    contractDataInstanceKey(contractId),
+    fetchImpl,
+  );
   if (instanceResult === undefined) {
-    return finding(CORRUPTED_ENTRY_RULE, 'error', 'instance entry could not be fetched from Soroban RPC');
+    return finding(
+      CORRUPTED_ENTRY_RULE,
+      'error',
+      'instance entry could not be fetched from Soroban RPC',
+    );
   }
   if (instanceResult.liveUntil === undefined) {
     return finding(CORRUPTED_ENTRY_RULE, 'error', 'has no live instance entry on the ledger');
@@ -156,7 +167,9 @@ export async function auditContractInstanceStorage(
   }
 
   // Check for missing critical keys
-  const hasAdmin = storage.some((e) => scString(e.key()) === 'admin' || scString(e.key()) === 'owner');
+  const hasAdmin = storage.some(
+    (e) => scString(e.key()) === 'admin' || scString(e.key()) === 'owner',
+  );
   if (!hasAdmin) {
     diagnostics.push(
       ...finding(
@@ -187,15 +200,14 @@ export async function auditTomlInstanceStorage(
   const diagnostics: Diagnostic[] = [];
   for (const currency of contractCurrenciesOf(doc)) {
     if (!isString(currency.id) || !currency.id.startsWith('C')) continue;
-    const displayDecimals = isInteger(currency.entry.display_decimals) ? currency.entry.display_decimals : undefined;
+    const displayDecimals = isInteger(currency.entry.display_decimals)
+      ? currency.entry.display_decimals
+      : undefined;
     diagnostics.push(
-      ...(await auditContractInstanceStorage(
-        currency.id,
-        rpcUrl,
-        displayDecimals,
-        fetchImpl,
-        { ...options, path: currency.path },
-      )),
+      ...(await auditContractInstanceStorage(currency.id, rpcUrl, displayDecimals, fetchImpl, {
+        ...options,
+        path: currency.path,
+      })),
     );
   }
   return diagnostics;
@@ -220,4 +232,6 @@ export const instanceStorageAuditorRules: Rule[] = [
 ];
 
 /** Rule ids emitted by {@link auditTomlInstanceStorage}. */
-export const instanceStorageAuditorRuleIds: readonly string[] = instanceStorageAuditorRules.map((rule) => rule.id);
+export const instanceStorageAuditorRuleIds: readonly string[] = instanceStorageAuditorRules.map(
+  (rule) => rule.id,
+);
