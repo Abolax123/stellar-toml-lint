@@ -43,6 +43,9 @@ const FORMATS = [
 /** `--graph` choices. */
 const GRAPH_FORMATS = ['mermaid', 'dot'] as const;
 
+/** `--install-hook` / `--uninstall-hook` choices, kept in step with git-hooks.ts. */
+const HOOK_NAMES = ['pre-commit', 'pre-push'] as const;
+
 interface FlagSpec {
   /** Long form, e.g. `--format`. */
   long: string;
@@ -100,6 +103,16 @@ const FLAGS: readonly FlagSpec[] = [
     long: '--completion',
     description: 'Print a shell completion script',
     values: COMPLETION_SHELLS,
+  },
+  {
+    long: '--install-hook',
+    description: 'Install a native Git hook that lints stellar.toml',
+    values: HOOK_NAMES,
+  },
+  {
+    long: '--uninstall-hook',
+    description: 'Remove a stellar-toml-lint Git hook',
+    values: HOOK_NAMES,
   },
   { long: '--version', short: '-v', description: 'Print the version' },
   { long: '--help', short: '-h', description: 'Print usage' },

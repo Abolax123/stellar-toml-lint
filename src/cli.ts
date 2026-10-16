@@ -55,6 +55,13 @@ import { createFixtureFetch } from './mock-fixtures.js';
 import { runLspServer } from './lsp/server.js';
 import { getTomlJsonSchema } from './schema.js';
 import { generateCompletion, isCompletionShell } from './completion.js';
+import {
+  BACKUP_SUFFIX,
+  installHook,
+  isHookName,
+  uninstallHook,
+  type HookName,
+} from './cli/git-hooks.js';
 import type { Diagnostic, LintResult, RuleOverrides, Severity } from './types.js';
 
 const VERSION = '0.1.0';
@@ -98,6 +105,8 @@ interface Cli {
   policy?: string;
   mockFixtures?: string;
   lsp?: boolean;
+  installHook?: HookName;
+  uninstallHook?: HookName;
 }
 
 const USAGE = `stellar-toml-lint ${VERSION}
@@ -167,6 +176,13 @@ OPTIONS
       --list-rules        Print every rule and exit
       --completion <sh>   Print a shell completion script for bash, zsh, or fish
                           (e.g. eval "$(stellar-toml-lint --completion zsh)")
+      --install-hook <hook>
+                          Write a native Git hook (pre-commit or pre-push) that
+                          lints stellar.toml before it leaves the machine. The
+                          hook runs $STELLAR_TOML_LINT and aborts on findings
+      --uninstall-hook <hook>
+                          Remove a hook this tool installed, restoring any hook
+                          it replaced
   -v, --version
   -h, --help
 
@@ -227,6 +243,17 @@ async function main(argv: string[]): Promise<number> {
   } catch (error) {
     process.stderr.write(`${message(error)}\n\nRun with --help for usage.\n`);
     return 2;
+  }
+
+  // Hook management is a one-shot install or uninstall: it answers before any
+  // file is read, and never falls through to a lint run.
+  if (cli.installHook !== undefined || cli.uninstallHook !== undefined) {
+    try {
+      return await runHookCommand(cli);
+    } catch (error) {
+      process.stderr.write(`${message(error)}\n`);
+      return 2;
+    }
   }
 
   const color = cli.color ?? shouldUseColor();
@@ -696,6 +723,14 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.lsp = true;
         break;
 
+      case '--install-hook':
+        cli.installHook = requireHookName(argv, ++i, arg);
+        break;
+
+      case '--uninstall-hook':
+        cli.uninstallHook = requireHookName(argv, ++i, arg);
+        break;
+
       case '-d':
       case '--domain':
         cli.domain = requireValue(argv, ++i, arg);
@@ -878,6 +913,14 @@ function parseArgs(argv: string[]): Cli | 'handled' {
   return cli;
 }
 
+function requireHookName(argv: string[], index: number, flag: string): HookName {
+  const value = requireValue(argv, index, flag);
+  if (!isHookName(value)) {
+    throw new Error(`Unknown hook "${value}". Expected pre-commit or pre-push.`);
+  }
+  return value;
+}
+
 function requireValue(argv: string[], index: number, flag: string): string {
   const value = argv[index];
   if (value === undefined || value.startsWith('-')) {
@@ -956,6 +999,47 @@ main(process.argv.slice(2))
     process.stderr.write(`Unexpected failure: ${message(error)}\n`);
     process.exitCode = 2;
   });
+
+/**
+ * Handles `--install-hook` and `--uninstall-hook`.
+ *
+ * The generated hook is intentionally not run here: it is verified by the
+ * test suite against a throwaway repository, not by the installer pretending
+ * the hook it just wrote works.
+ */
+async function runHookCommand(cli: Cli): Promise<number> {
+  if (cli.uninstallHook !== undefined) {
+    const result = await uninstallHook(cli.uninstallHook);
+    if (!result.present) {
+      process.stdout.write(`No ${cli.uninstallHook} hook installed at ${result.path}\n`);
+      return 0;
+    }
+    if (!result.removed) {
+      process.stderr.write(
+        `${result.path} is not a stellar-toml-lint hook; leaving it untouched. Remove it by hand if that is what you want.\n`,
+      );
+      return 1;
+    }
+    process.stdout.write(`Removed the ${cli.uninstallHook} hook from ${result.path}\n`);
+    if (result.restored !== undefined) {
+      process.stdout.write(`Restored the previous hook from ${result.path}${BACKUP_SUFFIX}\n`);
+    }
+    return 0;
+  }
+
+  const name = cli.installHook;
+  if (name === undefined) return 0;
+
+  const result = await installHook(name);
+  process.stdout.write(`Installed the ${name} hook at ${result.path}\n`);
+  if (result.backedUp !== undefined) {
+    process.stdout.write(`Preserved the existing hook at ${result.backedUp}\n`);
+  }
+  process.stdout.write(
+    'The hook runs $STELLAR_TOML_LINT; set it to pin the exact version your CI uses.\n',
+  );
+  return 0;
+}
 
 async function watchFiles(
   paths: string[],

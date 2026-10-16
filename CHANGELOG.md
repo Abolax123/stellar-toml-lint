@@ -9,6 +9,37 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `--install-hook pre-commit|pre-push` and `--uninstall-hook` write native Git hooks with no
+  `pre-commit` framework involved. `pre-commit` lints the **staged blob** of any staged
+  `stellar.toml` — what the commit will contain, not the working tree — and `pre-push` resolves the
+  commit range git hands it on stdin (including a brand-new branch, where it uses only the commits
+  no remote has yet) and lints every `stellar.toml` in it, aborting the push with exit `1` on
+  findings. A hook this tool did not write is preserved as `<hook>.stellar-toml-lint.bak` before
+  being replaced, reinstalling refreshes our own hook in place, and `--uninstall-hook` restores the
+  original. The hooks run `$STELLAR_TOML_LINT` (default `npx --yes stellar-toml-lint`) so a team can
+  pin the version its CI uses (#363).
+
+- `apps/playground`: an interactive playground whose corridor visualizer draws the multi-party
+  payment path — User Wallet → SEP-10 Auth → SEP-12 KYC → SEP-38 Quote → SEP-6/24/31 Anchor →
+  Horizon Ledger — straight from `stellar.toml`, marking missing or misconfigured service bridges
+  red and jumping to the declaring line when a stage is clicked. Two cross-field failures no
+  single-field rule can see are called out: an authenticated leg (SEP-12, SEP-24, SEP-31, SEP-38)
+  with no `WEB_AUTH_ENDPOINT`, and `DIRECT_PAYMENT_SERVER` (SEP-31) with no `KYC_SERVER`. The graph
+  model is framework-free and tested directly; Cytoscape only renders it (#369).
+
+- `apps/pwa`: an installable, offline-first studio. A Workbox service worker precaches the app
+  shell, the icons, a rule catalog and `stellar.toml` JSON Schema generated from the published
+  package (so the offline copy cannot drift from the rules the CLI enforces), `.wasm` assets are
+  cached on first use, and named projects are kept in IndexedDB with a memory fallback for private
+  windows. Linting runs in the packaged worker bundle so a large paste does not lock the tab (#365).
+
+- `apps/extension`: a Manifest V3 WebExtension for Chrome, Edge, and Firefox. It detects the
+  `https` origin of every tab, fetches and lints `/.well-known/stellar.toml` in the background, and
+  badges the verdict (green `✓`, amber/red count, grey `?` when the file could not be read, empty
+  for a page it will not inspect). A popup shows the organization, its listed assets, and the
+  findings error-first. `npm run build:extension` builds both targets; only the module format and
+  manifest differ between them (#367).
+
 - Follow and lint `toml` currency pointers. A `[[CURRENCIES]]` entry that points at a separate
   document via `toml` now has that document fetched and linted as part of the same run, so an
   anchor cannot pass with a broken linked asset. Enabled by `--follow-links` and implied by

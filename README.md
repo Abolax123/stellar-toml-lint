@@ -135,6 +135,8 @@ it was before.
 | `--show-help-urls`          | Print the spec link for each finding                                                                                    |
 | `--list-rules`              | Print every rule and exit                                                                                               |
 | `--completion <shell>`      | Print a `bash`, `zsh`, or `fish` completion script and exit                                                             |
+| `--install-hook <hook>`     | Write a native Git hook (`pre-commit` or `pre-push`) that lints `stellar.toml`                                          |
+| `--uninstall-hook <hook>`   | Remove a hook this tool installed and restore any hook it replaced                                                      |
 | `--no-suggestions`          | Hide diagnostic suggestions in the output                                                                               |
 | `--color`                   | Force colour on, overriding `NO_COLOR`                                                                                  |
 | `--no-color`                | Force colour off                                                                                                        |
@@ -362,6 +364,54 @@ To build the browser bundles:
 npm run build:browser
 ```
 
+## Companion apps
+
+Three browser-facing apps ship in this repository alongside the CLI. Each is self-contained — its own
+`package.json`, its own build, and (except for the browser-driven suites) tests that run in the
+repository's own `npm test`.
+
+### Payment corridor playground
+
+`apps/playground/` — an interactive page that lints a `stellar.toml` as you type and draws the
+multi-party payment corridor behind it:
+
+```
+User Wallet → SEP-10 Auth → SEP-12 KYC → SEP-38 Quote → SEP-6/24/31 Anchor → Horizon Ledger
+```
+
+Missing or misconfigured service bridges are drawn red, and clicking a stage jumps the source pane
+to the line that declared the field. Two failures that no single-field rule can see are called out
+specifically: an authenticated leg (SEP-12, SEP-24, SEP-31, SEP-38) with no `WEB_AUTH_ENDPOINT`, and
+`DIRECT_PAYMENT_SERVER` (SEP-31) with no `KYC_SERVER`.
+
+The graph model (`apps/playground/src/corridor-graph.ts`) is framework-free and tested directly;
+the Cytoscape component is a thin renderer over it. See
+[apps/playground/README.md](apps/playground/README.md).
+
+### Offline studio (PWA)
+
+`apps/pwa/` — an installable, offline-first studio for auditing info files with no network. Workbox
+precaches the app shell, the icons, a frozen rule catalog, and the `stellar.toml` JSON Schema; named
+projects live in IndexedDB and linting runs in a worker. The catalog and schema are generated from
+the published package (`npm run generate:data` inside the app) so the offline copy cannot drift from
+the rules the CLI enforces. See [apps/pwa/README.md](apps/pwa/README.md).
+
+### Browser extension
+
+`apps/extension/` — a Manifest V3 WebExtension for Chrome, Edge, and Firefox that auto-detects the
+`stellar.toml` served by the site you are visiting and badges the result on the toolbar:
+
+| Badge     | Meaning                    |
+| --------- | -------------------------- |
+| green `✓` | no findings                |
+| amber `n` | `n` warnings, no errors    |
+| red `n`   | `n` errors                 |
+| grey `?`  | the file could not be read |
+
+A popup shows the organization, its listed assets, and the findings error-first. Build it with
+`npm run build:extension` after the root build (it consumes the prebuilt browser bundle). See
+[apps/extension/README.md](apps/extension/README.md).
+
 ## In CI
 
 ### GitHub Action
@@ -527,6 +577,41 @@ repos:
         language: system
         files: '\.well-known/stellar\.toml$'
 ```
+
+### Native Git hooks
+
+Without the `pre-commit` framework, the linter installs git hooks itself — no extra dependency, and
+no YAML to copy between repositories:
+
+```bash
+stellar-toml-lint --install-hook pre-commit   # lint the staged stellar.toml before each commit
+stellar-toml-lint --install-hook pre-push     # lint the whole pushed range before it leaves your machine
+stellar-toml-lint --uninstall-hook pre-push   # remove it, restoring any hook it replaced
+```
+
+The two hooks answer different questions. `pre-commit` lints the **staged blob** — what the commit
+will actually contain, not the working tree — so a half-finished edit is never what gets checked.
+`pre-push` reads the refs git hands it on stdin, resolves the commit range being pushed (including a
+brand-new branch, where it uses only the commits no remote has yet), and lints every `stellar.toml`
+in that range from its committed content. A push that touches no `stellar.toml` — the common case
+while drafting — runs nothing at all:
+
+```console
+$ git push
+stellar-toml-lint: checking public/.well-known/stellar.toml
+  12:1      error    NETWORK_PASSPHRASE has stray whitespace  network/passphrase
+...
+stellar-toml-lint: push aborted — fix the findings above, or push with --no-verify.
+```
+
+Both hooks exit `1` to abort the operation when SEP-1 errors are found, and `--no-verify` remains
+the documented escape hatch. The hooks run `npx --yes stellar-toml-lint` by default; set
+`STELLAR_TOML_LINT` to pin the exact command (and version) your CI uses, e.g.
+`STELLAR_TOML_LINT="./node_modules/.bin/stellar-toml-lint"`.
+
+Installing never destroys work. A hook this tool did not write is moved to
+`<hook>.stellar-toml-lint.bak` before being replaced, reinstalling refreshes our hook in place, and
+`--uninstall-hook` puts the original back.
 
 ### Offline and air-gapped CI
 

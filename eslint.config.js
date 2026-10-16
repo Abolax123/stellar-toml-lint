@@ -2,7 +2,21 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      // Build outputs and reports from the companion apps. They are generated
+      // bundles, not source, and linting them only reports the browser globals
+      // the bundler deliberately left in place.
+      '**/dist-chrome/**',
+      '**/dist-firefox/**',
+      '**/lighthouse-report/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -17,8 +31,9 @@ export default tseslint.config(
     },
   },
   {
-    // Tests assert on parsed JSON, which is legitimately `any`.
-    files: ['test/**/*.ts'],
+    // Tests assert on parsed JSON and drive stubbed browser APIs, which are
+    // legitimately `any`. Applies to the companion apps' tests too.
+    files: ['test/**/*.ts', 'apps/**/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
