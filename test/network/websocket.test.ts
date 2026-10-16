@@ -5,13 +5,16 @@ import {
   WEBSOCKET_PING_TIMEOUT_RULE,
 } from '../../src/network/websocket-auditor.js';
 
+const READY_STATE_CONNECTING = 0;
+const READY_STATE_OPEN = 1;
+
 describe('WebSocket Auditor', () => {
   const mockWebSocket = {
     onopen: null as ((event: Event) => void) | null,
     onerror: null as ((event: Event) => void) | null,
     onclose: null as ((event: CloseEvent) => void) | null,
     onpong: null as ((event: Event) => void) | null,
-    readyState: WebSocket.CONNECTING as number,
+    readyState: READY_STATE_CONNECTING,
     ping: vi.fn(),
     close: vi.fn(),
   };
@@ -40,7 +43,7 @@ describe('WebSocket Auditor', () => {
     });
 
     // Simulate successful connection
-    mockWebSocket.readyState = WebSocket.OPEN;
+    mockWebSocket.readyState = READY_STATE_OPEN;
     mockWebSocket.onopen?.(new Event('open'));
 
     // Simulate pong
@@ -84,7 +87,7 @@ describe('WebSocket Auditor', () => {
     });
 
     // Simulate successful connection
-    mockWebSocket.readyState = WebSocket.OPEN;
+    mockWebSocket.readyState = READY_STATE_OPEN;
     mockWebSocket.onopen?.(new Event('open'));
 
     // Don't send pong - let it timeout
