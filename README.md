@@ -196,6 +196,7 @@ Exit codes: **0** no errors, **1** problems found, **2** bad usage or I/O failur
 | `--verify-clawback`         | Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC (requires `--check-network`)                       |
 | `--check-contracts`         | Verify Soroban contract/WASM TTL and the SEP-45 auth interface online                                                   |
 | `--soroban-rpc <url>`       | Soroban RPC endpoint for `--check-contracts` (defaults from `NETWORK_PASSPHRASE`)                                       |
+| `--evm-rpc <url>`           | EVM JSON-RPC endpoint for reading locked bridge reserves under `--check-network`                                        |
 | `--simulate-soroban`        | With `--check-network`: dry-run the SEP-41 read calls against the Soroban RPC                                           |
 | `--mock-fixtures <dir>`     | Serve network checks from recorded JSON fixtures under `<dir>`, never the network                                       |
 | `--webhook-slack <url>`     | POST a Slack Block Kit card with the run summary                                                                        |
@@ -235,6 +236,7 @@ Exit codes: **0** no errors, **1** problems found, **2** bad usage or I/O failur
 | `--verify-sep10`            | Verify SEP-10 nonce uniqueness and replay resistance (requires `--check-network`)                                       |
 | `--check-contracts`         | Verify Soroban contract/WASM TTL and the SEP-45 auth interface online                                                   |
 | `--soroban-rpc <url>`       | Soroban RPC endpoint for `--check-contracts` (defaults from `NETWORK_PASSPHRASE`)                                       |
+| `--evm-rpc <url>`           | EVM JSON-RPC endpoint for reading locked bridge reserves under `--check-network`                                        |
 | `--simulate-soroban`        | With `--check-network`: dry-run the SEP-41 read calls against the Soroban RPC                                           |
 | `--mock-fixtures <dir>`     | Serve network checks from recorded JSON fixtures under `<dir>`, never the network                                       |
 | `--webhook-slack <url>`     | POST a Slack Block Kit card with the run summary                                                                        |
@@ -1663,6 +1665,32 @@ control who may hold the asset and to be able to freeze offenders. A Horizon out
 account, or unparseable response degrades to the `currencies/regulated-issuer-flags-unverifiable`
 warning instead of failing the run.
 
+**Corridors** (with `--check-network`) — every ordered pair of classic assets declared in
+`[[CURRENCIES]]` is a corridor the file implicitly advertises, so each pair is probed through
+Horizon's `/paths/strict-send` at the standard remittance amounts ($10, $100, $1,000). A pair with
+no payment path emits `corridors/no-route` (error); a pair whose rate degrades as the amount grows
+or that stops routing part of the amount ladder emits `corridors/illiquid` (warning), as does a
+declared asset that participates in no routable corridor (`corridors/orphaned-asset`). Horizon not
+answering degrades to `corridors/unreachable` (warning) rather than failing the run. Nothing is
+probed for files declaring fewer than two classic assets.
+
+**History archive range and throughput audit** (with `--check-network`) — every
+`[[VALIDATORS]].HISTORY` archive is read for `.well-known/stellar-history.json`, then sent a byte
+range request. Missing or unreadable metadata emits `validators/archive-metadata-unreadable`
+(error); a range answered with something other than `206 Partial Content` emits
+`validators/archive-range-unsupported` (error), and a slice whose length or `Content-Range`
+disagrees with what was asked for emits `validators/archive-range-mismatch` (error). A mirror slower
+than the throughput floor warns with `validators/archive-slow`, and one serving a checkpoint far
+behind the network warns with `validators/archive-checkpoint-stale`.
+
+**Bridge reserves** (with `--check-network`) — for every `[[CURRENCIES]]` entry carrying an
+`origin_network`, the supply minted on Stellar is reconciled against the reserve locked in the
+origin-chain custody address (`bridge_contract`/`reserve_custodian`), in exact BigInt scaled to a
+common precision. Locked less than minted emits `bridge/undercollateralized` (error); locked more
+emits `bridge/over-reserved` (info). The locked balance is read over the EVM JSON-RPC endpoint given
+with `--evm-rpc`, and a bridge without that endpoint or without a custody address degrades to
+`bridge/balance-unreachable` or `bridge/config-incomplete` (warnings).
+
 **Contracts** (with `--check-contracts`) — a checksummed `C...` address says nothing about whether
 a contract was ever deployed there, so the linter queries the Soroban RPC's `getLedgerEntries` for
 the contract instance and WASM behind every `[[CURRENCIES]].contract` and `WEB_AUTH_CONTRACT_ID`:
@@ -1683,6 +1711,13 @@ Testnet, or Futurenet) and can be overridden with `--rpc-url`:
 ```bash
 stellar-toml-lint stellar.toml --check-contracts --rpc-url https://my-rpc.example.com
 ```
+
+The same run cross-checks the functions and events documented in stellar.toml against the interface
+spec embedded in the deployed WASM: a documented function the contract does not expose emits
+`soroban/contract-function-undeclared` (error), a function or event the file never documents emits
+`soroban/contract-function-undocumented` (info) or `soroban/contract-event-undeclared` (warning),
+and metadata that cannot be fetched or decoded degrades to
+`soroban/contract-metadata-undecodable` (warning).
 
 For `WEB_AUTH_CONTRACT_ID`, the deployed WASM's `contractspecv0` custom section is read and its
 exported functions checked. A contract whose spec declares functions but not `web_auth_verify`
