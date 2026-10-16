@@ -80,6 +80,9 @@ function severityFor(
  * The ledger key of a contract's instance entry. A contract instance is a
  * single key in the `ContractData` table with the special
  * `ledgerKeyContractInstance` scval as its key.
+ *
+ * Exported for the contract-metadata parser, which resolves a contract id to
+ * its WASM the same way.
  */
 export function contractDataInstanceKey(contractId: string): string {
   const key = xdr.LedgerKey.contractData(
@@ -93,7 +96,7 @@ export function contractDataInstanceKey(contractId: string): string {
 }
 
 /** The ledger key of the WASM blob a contract instance points at. */
-function contractCodeKey(wasmHash: Buffer): string {
+export function contractCodeKey(wasmHash: Buffer): string {
   const key = xdr.LedgerKey.contractCode(new xdr.LedgerKeyContractCode({ hash: wasmHash }));
   return key.toXDR('base64');
 }
@@ -101,8 +104,10 @@ function contractCodeKey(wasmHash: Buffer): string {
 /**
  * The WASM hash referenced by a contract's instance entry, or `undefined`
  * when the entry does not describe a contract executable as WASM.
+ *
+ * Exported for the contract-metadata parser, which needs the same lookup.
  */
-function wasmHashOf(entryXdr: unknown): Buffer | undefined {
+export function wasmHashOf(entryXdr: unknown): Buffer | undefined {
   if (!isString(entryXdr)) return undefined;
   try {
     const data = xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');

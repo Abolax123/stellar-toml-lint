@@ -67,6 +67,10 @@ import { multisigRules } from '../security/multisig.js';
 import { ipfsMetadataRules } from '../validators/ipfsMetadata.js';
 import { sep8WebhookRules } from '../sep8/webhookCoordinator.js';
 import { accountDataAuditorRules } from '../security/account-data-auditor.js';
+import { contractMetadataRules } from '../soroban/contractMetadata.js';
+import { historyArchiveRules } from '../validators/historyArchive.js';
+import { bridgeReserveRules } from '../validators/bridgeReserve.js';
+import { corridorRoutingRules } from '../corridors/routingVerifier.js';
 
 /** Every rule, in report order. */
 export const allRules: Rule[] = [
@@ -82,6 +86,7 @@ export const allRules: Rule[] = [
   ...maxDecimalsRules,
   ...validatorRules,
   ...validatorDedupRules,
+  ...historyArchiveRules,
   ...securityRules,
   ...multisigRules,
 
@@ -90,9 +95,12 @@ export const allRules: Rule[] = [
   ...horizonRules,
   ...sep3Rules,
   ...sep38Rules,
+  ...corridorRoutingRules,
+  ...bridgeReserveRules,
   ...orgUrlRules,
   ...imageAssetRules,
   ...sorobanRules,
+  ...contractMetadataRules,
   ...wasmAuditorRules,
   ...envMetaRules,
   ...eventRules,
@@ -204,4 +212,8 @@ export {
   ipfsMetadataRules,
   sep8WebhookRules,
   accountDataAuditorRules,
+  contractMetadataRules,
+  historyArchiveRules,
+  bridgeReserveRules,
+  corridorRoutingRules,
 };

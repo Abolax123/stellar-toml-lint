@@ -84,6 +84,7 @@ describe('cli', () => {
     expect(stdout).toContain('EXIT CODES');
     expect(stdout).toContain('--check-contracts');
     expect(stdout).toContain('--soroban-rpc');
+    expect(stdout).toContain('--evm-rpc');
     expect(stdout).toContain('checkstyle');
   });
 
@@ -119,6 +120,9 @@ describe('cli', () => {
     expect(stdout).toContain('currencies/regulated-missing-auth-revocable-flag');
     expect(stdout).toContain('soroban/contract-ttl-expiring-soon');
     expect(stdout).toContain('soroban/contract-expired');
+    expect(stdout).toContain('corridors/no-route');
+    expect(stdout).toContain('validators/archive-range-unsupported');
+    expect(stdout).toContain('bridge/undercollateralized');
     expect(stdout).toMatch(/^\d+ rules/);
   });
 
@@ -174,6 +178,12 @@ describe('cli', () => {
 
   it('rejects --soroban-rpc without a value', async () => {
     const { code, stderr } = await cli(['--check-contracts', '--soroban-rpc']);
+    expect(code).toBe(2);
+    expect(stderr).toContain('expects a value');
+  });
+
+  it('rejects --evm-rpc without a value', async () => {
+    const { code, stderr } = await cli(['--check-network', '--evm-rpc']);
     expect(code).toBe(2);
     expect(stderr).toContain('expects a value');
   });

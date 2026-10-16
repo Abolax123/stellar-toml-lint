@@ -9,6 +9,29 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Cross-border corridor routing under `--check-network` (#400): every ordered pair of classic assets
+  declared in `[[CURRENCIES]]` is probed through Horizon's `/paths/strict-send` at the standard
+  remittance amounts, emitting `corridors/no-route` (error), `corridors/illiquid`,
+  `corridors/orphaned-asset` and `corridors/unreachable` (warnings) — a corridor that looks fine in
+  the file but has no executable SDEX path fails the run instead of failing at transfer time.
+
+- Documented functions and events are cross-checked against the interface spec embedded in the
+  deployed WASM under `--check-contracts` (#401), emitting `soroban/contract-function-undeclared`
+  (error), `soroban/contract-function-undocumented` (info), `soroban/contract-event-undeclared`,
+  `soroban/contract-interface-version-drift` and `soroban/contract-metadata-undecodable` (warnings).
+
+- SEP-20 history archive auditing under `--check-network` (#402): each `[[VALIDATORS]].HISTORY`
+  archive is read for `.well-known/stellar-history.json` and then sent a byte range request,
+  emitting `validators/archive-metadata-unreadable`, `validators/archive-range-unsupported` and
+  `validators/archive-range-mismatch` (errors), plus `validators/archive-slow` and
+  `validators/archive-checkpoint-stale` (warnings) for a lagging or sluggish mirror.
+
+- Bridge reserve reconciliation under `--check-network` (#403): the supply minted on Stellar is
+  compared with the reserve locked in the origin-chain custody address at exact BigInt precision,
+  emitting `bridge/undercollateralized` (error), `bridge/over-reserved` (info), and
+  `bridge/balance-unreachable` / `bridge/config-incomplete` (warnings). The origin chain is read
+  over the new `--evm-rpc <url>` flag.
+
 - `--format-file` rewrites a `stellar.toml` in place into a canonical layout: SEP-1 field order,
   sections in spec order, single spaces around `=`, one blank line between sections, and consistent
   quoting. Comments and string contents are preserved. The rewrite is idempotent, is proven not to

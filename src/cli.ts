@@ -48,6 +48,10 @@ import { checkSep38 } from './rules/sep38-endpoints.js';
 import { checkRegulatedIssuerFlags } from './rules/regulated-flags.js';
 import { checkFixedSupplyIssuerLocks } from './rules/fixed-supply-audit.js';
 import { checkContracts } from './soroban.js';
+import { checkContractMetadata } from './soroban/contractMetadata.js';
+import { checkCorridorRouting } from './corridors/routingVerifier.js';
+import { checkHistoryArchives } from './validators/historyArchive.js';
+import { checkBridgeReserves } from './validators/bridgeReserve.js';
 import { auditTomlContractEnvMeta } from './soroban/env-meta.js';
 import { auditTomlContractEvents } from './soroban/events.js';
 import { auditTomlContractAdmins } from './soroban/admin-auditor.js';
@@ -201,6 +205,7 @@ interface Cli {
   interactive?: boolean;
   checkContracts: boolean;
   sorobanRpc?: string;
+  evmRpc?: string;
   simulateSoroban?: boolean;
   sorobanRentAudit?: boolean;
   sorobanInstanceStorageAudit?: boolean;
@@ -277,8 +282,9 @@ OPTIONS
       --health-check      Ping declared endpoint URLs to ensure they are live
       --check-network     Verify SIGNING_KEY, ACCOUNTS, HORIZON_URL, SEP-8
                           regulated issuer flags, TLS certificate expiry,
-                          history archive freshness, and ANCHOR_QUOTE_SERVER
-                          against the network
+                          history archive freshness, ANCHOR_QUOTE_SERVER,
+                          SDEX corridor routing, and bridge reserves against
+                          the network
       --audit-quorum      With --check-network: solve the declared quorum sets
                           ([[VALIDATORS]].QUORUM_SET or CONFIG_URL-linked
                           stellar-core.cfg) for split-brain risk and fragile
@@ -329,6 +335,8 @@ OPTIONS
                           their WASM is not evicted, and that their TTL is live
       --rpc-url <url>     Soroban RPC endpoint to use with --check-contracts
                           (defaults from NETWORK_PASSPHRASE; alias --soroban-rpc)
+      --evm-rpc <url>     EVM JSON-RPC endpoint to use with --check-network for
+                          reading the reserves a bridge locks on its origin chain
       --simulate-soroban  With --check-network: dry-run the SEP-41 read calls
                           against the Soroban RPC without submitting a transaction
       --soroban-rent-audit
@@ -951,6 +959,26 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.verifyOverlay && cli.mockFixtures === undefined
                   ? await checkOverlayHandshake(fileResult.parsed, { rules })
                   : []),
+                // SDEX corridors, history archives, and bridge reserves all
+                // target the network the file declares.
+                ...(await checkCorridorRouting(fileResult.parsed, fetchImpl, {
+                  rules,
+                  horizonUrl: horizonUrlFor(
+                    typeof fileResult.parsed.NETWORK_PASSPHRASE === 'string'
+                      ? fileResult.parsed.NETWORK_PASSPHRASE
+                      : undefined,
+                  ),
+                })),
+                ...(await checkHistoryArchives(fileResult.parsed, fetchImpl, { rules })),
+                ...(await checkBridgeReserves(fileResult.parsed, fetchImpl, {
+                  rules,
+                  horizonUrl: horizonUrlFor(
+                    typeof fileResult.parsed.NETWORK_PASSPHRASE === 'string'
+                      ? fileResult.parsed.NETWORK_PASSPHRASE
+                      : undefined,
+                  ),
+                  ...(cli.evmRpc !== undefined ? { evmRpcUrl: cli.evmRpc } : {}),
+                })),
               );
             }
 
@@ -998,6 +1026,10 @@ async function main(argv: string[]): Promise<number> {
                 })),
                 ...audit.diagnostics,
                 ...(await checkContractDependencies(fileResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
+                })),
+                ...(await checkContractMetadata(fileResult.parsed, fetchImpl, {
                   rules,
                   ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
                 })),
@@ -1702,6 +1734,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
       case '--rpc-url':
       case '--soroban-rpc':
         cli.sorobanRpc = requireValue(argv, ++i, arg);
+        break;
+
+      case '--evm-rpc':
+        cli.evmRpc = requireValue(argv, ++i, arg);
         break;
 
       case '--simulate-soroban':
