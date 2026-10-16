@@ -6,6 +6,8 @@
  * produces diagnostics or a reporter that formats them.
  */
 
+import type { CstDocument } from './cst/parser.js';
+
 /** How much a violation matters. Only `error` affects the default exit code. */
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -19,12 +21,23 @@ export type RuleCategory =
   | 'validators'
   | 'network'
   | 'policy'
-  | 'sep12';
+  | 'sep12'
+  | 'monitor'
+  | 'codemod';
 
 /** A 1-based position in the source file. */
 export interface Position {
   line: number;
   column: number;
+}
+
+/**
+ * A mechanically safe rewrite `--fix` can apply by itself. Present only when
+ * there is exactly one unambiguous correction, so the tool never guesses.
+ */
+export interface Fix {
+  /** The corrected value, unencoded, to put in place of the offending one. */
+  value: string;
 }
 
 /** One rule violation at one place in the file. */
@@ -218,6 +231,15 @@ export interface StellarToml {
 export interface RuleContext {
   /** The parsed TOML document. */
   doc: Record<string, unknown>;
+  /**
+   * The lossless Concrete Syntax Tree the document was parsed into.
+   *
+   * Optional so a hand-built context in a test keeps compiling, but every run
+   * through {@link lint} supplies one. Rules that need comments, whitespace, or
+   * exact token spans rather than decoded values can walk it with `walk` from
+   * `cst/visitor.js`.
+   */
+  cst?: CstDocument;
   /** Raw source, for rules that care about bytes or formatting. */
   source: string;
   options: LintOptions;

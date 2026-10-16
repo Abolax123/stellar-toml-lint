@@ -9,12 +9,15 @@ const LONG_FLAGS = [
   '--format',
   '--strict',
   '--max-warnings',
+  '--fail-on',
   '--off',
   '--error',
   '--warn',
   '--preset',
   '--check-network',
   '--check-contracts',
+  '--verify-overlay',
+  '--contract-graph',
   '--mock-fixtures',
   '--completion',
 ];
@@ -33,7 +36,7 @@ describe('generateCompletion', () => {
 
   it('offers the format choices, including the newer reporters', () => {
     const bash = generateCompletion('bash', allRules);
-    for (const format of ['text', 'json', 'sarif', 'checkstyle', 'markdown']) {
+    for (const format of ['text', 'summary', 'json', 'sarif', 'checkstyle', 'markdown']) {
       expect(bash).toContain(format);
     }
   });

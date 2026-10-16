@@ -9,36 +9,149 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `--install-hook pre-commit|pre-push` and `--uninstall-hook` write native Git hooks with no
-  `pre-commit` framework involved. `pre-commit` lints the **staged blob** of any staged
-  `stellar.toml` — what the commit will contain, not the working tree — and `pre-push` resolves the
-  commit range git hands it on stdin (including a brand-new branch, where it uses only the commits
-  no remote has yet) and lints every `stellar.toml` in it, aborting the push with exit `1` on
-  findings. A hook this tool did not write is preserved as `<hook>.stellar-toml-lint.bak` before
-  being replaced, reinstalling refreshes our own hook in place, and `--uninstall-hook` restores the
-  original. The hooks run `$STELLAR_TOML_LINT` (default `npx --yes stellar-toml-lint`) so a team can
-  pin the version its CI uses (#363).
+- Cross-border corridor routing under `--check-network` (#400): every ordered pair of classic assets
+  declared in `[[CURRENCIES]]` is probed through Horizon's `/paths/strict-send` at the standard
+  remittance amounts, emitting `corridors/no-route` (error), `corridors/illiquid`,
+  `corridors/orphaned-asset` and `corridors/unreachable` (warnings) — a corridor that looks fine in
+  the file but has no executable SDEX path fails the run instead of failing at transfer time.
 
-- `apps/playground`: an interactive playground whose corridor visualizer draws the multi-party
-  payment path — User Wallet → SEP-10 Auth → SEP-12 KYC → SEP-38 Quote → SEP-6/24/31 Anchor →
-  Horizon Ledger — straight from `stellar.toml`, marking missing or misconfigured service bridges
-  red and jumping to the declaring line when a stage is clicked. Two cross-field failures no
-  single-field rule can see are called out: an authenticated leg (SEP-12, SEP-24, SEP-31, SEP-38)
-  with no `WEB_AUTH_ENDPOINT`, and `DIRECT_PAYMENT_SERVER` (SEP-31) with no `KYC_SERVER`. The graph
-  model is framework-free and tested directly; Cytoscape only renders it (#369).
+- Documented functions and events are cross-checked against the interface spec embedded in the
+  deployed WASM under `--check-contracts` (#401), emitting `soroban/contract-function-undeclared`
+  (error), `soroban/contract-function-undocumented` (info), `soroban/contract-event-undeclared`,
+  `soroban/contract-interface-version-drift` and `soroban/contract-metadata-undecodable` (warnings).
 
-- `apps/pwa`: an installable, offline-first studio. A Workbox service worker precaches the app
-  shell, the icons, a rule catalog and `stellar.toml` JSON Schema generated from the published
-  package (so the offline copy cannot drift from the rules the CLI enforces), `.wasm` assets are
-  cached on first use, and named projects are kept in IndexedDB with a memory fallback for private
-  windows. Linting runs in the packaged worker bundle so a large paste does not lock the tab (#365).
+- SEP-20 history archive auditing under `--check-network` (#402): each `[[VALIDATORS]].HISTORY`
+  archive is read for `.well-known/stellar-history.json` and then sent a byte range request,
+  emitting `validators/archive-metadata-unreadable`, `validators/archive-range-unsupported` and
+  `validators/archive-range-mismatch` (errors), plus `validators/archive-slow` and
+  `validators/archive-checkpoint-stale` (warnings) for a lagging or sluggish mirror.
 
-- `apps/extension`: a Manifest V3 WebExtension for Chrome, Edge, and Firefox. It detects the
-  `https` origin of every tab, fetches and lints `/.well-known/stellar.toml` in the background, and
-  badges the verdict (green `✓`, amber/red count, grey `?` when the file could not be read, empty
-  for a page it will not inspect). A popup shows the organization, its listed assets, and the
-  findings error-first. `npm run build:extension` builds both targets; only the module format and
-  manifest differ between them (#367).
+- Bridge reserve reconciliation under `--check-network` (#403): the supply minted on Stellar is
+  compared with the reserve locked in the origin-chain custody address at exact BigInt precision,
+  emitting `bridge/undercollateralized` (error), `bridge/over-reserved` (info), and
+  `bridge/balance-unreachable` / `bridge/config-incomplete` (warnings). The origin chain is read
+  over the new `--evm-rpc <url>` flag.
+
+- `--format-file` rewrites a `stellar.toml` in place into a canonical layout: SEP-1 field order,
+  sections in spec order, single spaces around `=`, one blank line between sections, and consistent
+  quoting. Comments and string contents are preserved. The rewrite is idempotent, is proven not to
+  change the parsed document before it is written, and leaves a file that does not parse byte-for-byte
+  untouched with a positioned error. Also exported as `formatToml()`.
+- A regression corpus (`npm run corpus`): a catalogue of real, published `stellar.toml` files is
+  fetched, linted, and diffed against committed snapshots, so any change in the linter's behaviour on
+  real-world input shows up as a reviewable diff instead of as a surprise. Unreachable hosts are
+  reported without failing the run, and a scheduled workflow uploads the diff as an artifact. See
+  `test/corpus/README.md`.
+- A lossless, comment-preserving Concrete Syntax Tree parser (`src/cst/`) now backs parsing in
+  `lint`, replacing the `smol-toml` call. Every token, trivia span, comment, quoting style, and
+  whitespace run is retained, and serializing an unmodified tree reproduces the source
+  byte-for-byte, so the canonical formatter (#11), in-source rule suppression (#25), and
+  AST-guided autofixes (#9) can build on typed nodes instead of string slicing. Positions now
+  come from the tree rather than a second line scan, the tree is available to rules as
+  `RuleContext.cst`, and a 100KB document parses in under 15ms with no native dependency (#29).
+
+- `--format summary` (`-f summary`), a one-line-per-file status format for `pre-push` hooks,
+  monitoring scripts, and dashboards that need a verdict rather than a report:
+  `stellar.toml: PASS (0 errors, 0 warnings)`. Each file gets exactly one line carrying the target,
+  a `PASS`/`FAIL` verdict, and the error and warning counts, coloured green, yellow, or red to match.
+  The verdict is the same `LintResult.ok` the text report and the exit code use, so `--strict` fails
+  the line, the report, and the run together. The reporter is `formatSummary`, and the multi-file
+  closing line the `text` reporter appends is now `formatRunSummary`, since the two are easily
+  confused when both are in scope (#23).
+
+- `validators/quorum-intersection-failure` (error) and `validators/fragile-quorum-threshold`
+  (warning) under `--check-network --audit-quorum`: the quorum sets declared by
+  `[[VALIDATORS]].QUORUM_SET` — or the `[QUORUM_SET]` stanzas fetched from each validator's
+  `CONFIG_URL` `stellar-core.cfg` — are solved for safety. Minimal quorums are enumerated per node
+  and across nodes, and two disjoint quorums on different nodes mean the network can split-brain;
+  minimal blocking sets give each node's failure resilience. A threshold below 67% or zero
+  resilience is reported as fragile. Unreachable or malformed inputs stay silent (#85).
+- `history/archive-lagging` (warning, error past 512 ledgers) and
+  `history/archive-hash-mismatch` (error) under `--check-network`: each validator `HISTORY`
+  archive's root `stellar-history.json` is diffed against the live network — the ledger gap to the
+  matching Horizon's `core_latest_ledger`, and the archive checkpoint hash against the Horizon
+  ledger hash for the same sequence — so a stalled or rebuilt-out-of-sync archive is caught before
+  a relying peer or wallet falls behind (#86).
+- `history/bucket-download-failed`, `history/bucket-hash-mismatch`, and
+  `history/bucket-xdr-corrupted` (all errors) under `--check-network --verify-buckets`: a sample of
+  the `currentBuckets` each validator `HISTORY` archive declares is downloaded from the
+  content-addressed `bucket/xx/yy/zz/bucket-<sha256>.xdr.gz` tree, gunzipped, verified against the
+  SHA-256 its file name encodes, and decoded as a stream of XDR `BucketEntry` values — so a
+  truncated, altered, or bit-rotted bucket that still leaves the HAS intact is caught before a
+  catching-up node crashes on it (#87).
+
+- `network/image-unreachable`, `network/image-cors`, `network/image-content-type`, and
+  `network/image-max-size` (all warnings) under `--domain`: the branding images wallets actually
+  download — `DOCUMENTATION.ORG_LOGO` and up to ten `[[CURRENCIES]].image` URLs — are probed with
+  an `Origin`-carrying HEAD (falling back to GET when HEAD is rejected), so a logo that 404s, a
+  CDN that withholds `Access-Control-Allow-Origin: *` from browser wallets, an `image` URL served
+  as something other than an `image/*` type, or a `Content-Length` over 500KB is reported before
+  the wallet renders a blank tile. Offline `lint()` runs still never touch the network (#27).
+
+- `--check-network --verify-sep38` runs a SEP-38 anchor quotes and RFQ pricing engine simulator
+  (`src/protocols/sep38.ts`): `GET /info` must list quotable assets whose `country_codes` are ISO
+  3166 codes (`sep38/info-schema-invalid`, error); `GET /prices` must quote every pair built from
+  the assets the file declares — each `stellar:CODE:ISSUER` in `[[CURRENCIES]]` and the `iso4217`
+  side of a fiat-anchored currency (`sep38/prices-missing-declared-asset`, error); every returned
+  rate must be positive, and the reverse of each pair must agree with the forward rate inside a 15%
+  bid-ask spread (`sep38/abnormal-exchange-rate-spread`, warning); and `POST /quote`, asked for firm
+  and indicative quotes, must answer with an `expires_at` still in the future
+  (`sep38/invalid-quote-expiration`, error). Endpoint liveness and malformed bodies stay with the
+  plain `--check-network` probe, so nothing is reported twice (#66).
+
+- `--check-network --verify-sep24` runs a SEP-24 hosted deposit/withdrawal flow validator
+  (`src/protocols/sep24.ts`): `GET {TRANSFER_SERVER_SEP0024}/info` must answer 200 with `deposit`
+  and `withdraw` maps (`sep24/info-endpoint-unreachable`; an outage is reported as a warning so a
+  transient transfer-server blip does not fail a run over a file that was never at fault); every
+  anchored `[[CURRENCIES]]` entry must appear in the `/info` deposit or withdraw maps
+  (`sep24/currency-not-supported-in-info`, warning); fee objects and flat `fee_fixed`/`fee_percent`/
+  `fee_minimum` fields must carry numeric values (`sep24/invalid-fee-schema`, error); and an
+  interactive deposit session must return a transaction `id` and an HTTPS `url`
+  (`sep24/interactive-url-insecure`, error). The engine stays silent when the file declares no
+  usable transfer server, and honours `--off`/`--warn`/`--error` on each rule.
+
+- `--serve-mock [port]` starts a local mock anchor on `node:http` (default port `8080`): the file at
+  `/.well-known/stellar.toml` with `Access-Control-Allow-Origin: *`, SEP-10 challenges at `/auth`
+  for `NETWORK_PASSPHRASE`, and SEP-24 `/sep24/info` plus SEP-38 `/sep38/info` and `/sep38/prices`
+  generated from `[[CURRENCIES]]`. Challenges are signed with `SIGNING_KEY` when
+  `STELLAR_TOML_MOCK_SIGNING_SECRET` holds its secret and with a named ephemeral key otherwise; the
+  boot banner prints the routing table, and `SIGINT`/`SIGTERM` shut it down cleanly (#34).
+- `currencies/collateral-signature-invalid` (error) and `currencies/collateral-signature-malformed`
+  (error): each `collateral_address_signatures[i]` is now verified, offline, as the signature of
+  `collateral_address_messages[i]` by `collateral_addresses[i]` — Ed25519 (raw or SEP-53) for
+  Stellar `G...` accounts, BIP-137 secp256k1 for Bitcoin `1...`/`3...`/`bc1q...` addresses, and
+  EIP-191 recovery for Ethereum `0x...` addresses. `@noble/curves` and `@noble/hashes`, already
+  installed by `@stellar/stellar-base`, are now declared as direct dependencies (#33).
+- `soroban/symbol-mismatch` (error), `soroban/decimals-mismatch` (error), and
+  `soroban/name-mismatch` (warning) under `--check-contracts`: the SEP-41 `symbol`, `decimal`, and
+  `name` each currency contract keeps in its instance storage are read over `getLedgerEntries` and
+  compared against `code`, `display_decimals`, and `name`, with a suggestion naming the on-chain
+  value. A Stellar Asset Contract's `CODE:ISSUER` name is not compared, and unreadable metadata is
+  skipped rather than reported (#32).
+- `soroban/contract-not-found` (error) and `soroban/contract-evicted` (error) under
+  `--check-contracts`: every `[[CURRENCIES]].contract` and `WEB_AUTH_CONTRACT_ID` is looked up with
+  the Soroban RPC's `getLedgerEntries`, so a contract that was never deployed, or whose WASM has been
+  archived, is reported against the field that declared it instead of as a generic expiry. Every RPC
+  request is bounded by a 10-second timeout and degrades to `soroban/contract-ttl-unavailable`
+  (warning); `--rpc-url` is the new name for `--soroban-rpc`, which stays as an alias (#31).
+- `general/invalid-twitter-handle` (warning) validates `[DOCUMENTATION].ORG_TWITTER` as a bare
+  Twitter/X handle (`^[A-Za-z0-9_]{1,15}$`). A leading `@` or a pasted `twitter.com`/`x.com` profile
+  URL is reported with the exact bare handle to use instead and carries a quick-fix that applies it,
+  while an over-long or out-of-alphabet handle says which part of the grammar it breaks. The field
+  moves out of `documentation/social-handles`, which now covers `ORG_KEYBASE` only, so one problem
+  produces exactly one diagnostic (#137).
+- `security/tls-cert-expired` (error) and `security/tls-cert-expiring-soon` (warning) under
+  `--check-network`: every HTTPS endpoint the file declares is presented with one short TLS
+  handshake and its peer certificate's `valid_to` is read, so an already-expired certificate fails
+  the run and one with fewer than 30 days left warns in time to renew it. Endpoints sharing a host
+  are probed once, fixture-backed (`--mock-fixtures`) runs never open a socket, and an
+  unobservable certificate is skipped rather than reported (#134).
+
+- `--fail-on <error|warning|info>` sets the severity threshold that makes the CLI exit `1`, so CI
+  can fail on warnings without turning every info into a build failure — or the other way round.
+  Errors keep failing at every threshold; `--fail-on` takes precedence over `--strict`'s implicit
+  warning threshold when both are given; an unknown severity is a usage error (exit `2`); and the
+  flag completes in all three shells (#139).
 
 - Follow and lint `toml` currency pointers. A `[[CURRENCIES]]` entry that points at a separate
   document via `toml` now has that document fetched and linted as part of the same run, so an
@@ -89,7 +202,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   diagnostic says so and points at the SEP-1 location; if the root probe also fails, behaviour is
   unchanged (`network/unreachable` only). At most one extra request, still through the injected
   `fetchImpl` (#3).
-- Interactive quick-fix code actions over LSP (#42): `stellar-toml-lint --lsp` runs a stdio Language
+- Interactive quick-fix code actfeat: autofix for mechanically safe rules (#9)ions over LSP (#42): `stellar-toml-lint --lsp` runs a stdio Language
   Server that publishes diagnostics and answers `textDocument/codeAction` with `WorkspaceEdit`
   replacements for mechanically safe rules — `general/trailing-slash-in-endpoint`,
   `network/passphrase` (near miss), `documentation/social-handles`, `principals/social-handles`,
@@ -106,6 +219,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Text output follows the [NO_COLOR standard](https://no-color.org) explicitly: any non-empty
   `NO_COLOR` disables colour, an empty value counts as unset, and only an explicit `--color`
   overrides it. Covered by `test/no-color.test.ts` (#148).
+
+main
 
 - `--format junit` emits a JUnit XML test report for CI dashboards that chart test results (Jenkins,
   Bamboo, CircleCI, Azure DevOps). Error-severity findings are reported as `<failure>` elements and
@@ -158,11 +273,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - SEP-8 regulated issuer flags under `--check-network`: for every `[[CURRENCIES]]` entry marked
   `regulated=true` with a classic `issuer`, the linter reads the issuer account's flags from Horizon.
-  A missing `AUTH_REQUIRED` flag emits `currencies/regulated-missing-auth-required-flag` (error), a
+  A missing `AUTH_REQUIRED` flag emits `currencies/regulated-asset-missing-auth-required` (error), a
   missing `AUTH_REVOCABLE` flag emits `currencies/regulated-missing-auth-revocable-flag` (warning),
   and a Horizon outage or missing account degrades to
   `currencies/regulated-issuer-flags-unverifiable` (warning) so the run still fails cleanly on
-  strengthenable-to-fatal findings without depending on network availability.
+  strengthenable-to-fatal findings without depending on network availability. The audit lives in
+  its own module, `src/rules/regulated-flags.ts`, so the network-bound currency checks stay
+  separable from the offline ones (#136).
 - Soroban contract liveliness under `--check-contracts`: `src/soroban.ts` queries the Soroban RPC's
   `getLedgerEntries` for the contract instance and its WASM behind every `[[CURRENCIES]].contract`
   and `WEB_AUTH_CONTRACT_ID`, comparing `liveUntilLedgerSeq` against `latestLedger`. Within ~a day of

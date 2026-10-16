@@ -2,21 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  {
-    ignores: [
-      'dist/**',
-      'coverage/**',
-      'node_modules/**',
-      // Build outputs and reports from the companion apps. They are generated
-      // bundles, not source, and linting them only reports the browser globals
-      // the bundler deliberately left in place.
-      '**/dist-chrome/**',
-      '**/dist-firefox/**',
-      '**/lighthouse-report/**',
-      '**/playwright-report/**',
-      '**/test-results/**',
-    ],
-  },
+  { ignores: ['dist/**', 'coverage/**', 'docs/stellar-toml-lint.browser.js', 'node_modules/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

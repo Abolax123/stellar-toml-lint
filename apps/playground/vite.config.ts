@@ -1,13 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import path from 'path';
 
-// `base: './'` keeps the built playground usable from a static host and from a
-// `file://` URL, which is how the offline review path is exercised.
 export default defineConfig({
-  base: './',
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      'stellar-toml-lint/browser': path.resolve(__dirname, '../../dist/browser/index.js'),
+    },
+  },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
+  worker: {
+    format: 'es',
   },
 });
