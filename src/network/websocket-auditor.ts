@@ -98,7 +98,9 @@ async function testWebSocketConnection(
     ws = new WebSocket(url) as ExtendedWebSocket;
   } catch (error) {
     clearTimeout(timeoutId);
-    result.errors.push(`Failed to create WebSocket: ${error instanceof Error ? error.message : String(error)}`);
+    result.errors.push(
+      `Failed to create WebSocket: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return result;
   }
 
@@ -119,7 +121,9 @@ async function testWebSocketConnection(
     ws.onclose = (event) => {
       clearTimeout(timeoutId);
       if (!result.connected) {
-        result.errors.push(`Connection closed before handshake: code=${event.code}, reason=${event.reason}`);
+        result.errors.push(
+          `Connection closed before handshake: code=${event.code}, reason=${event.reason}`,
+        );
       }
       resolve();
     };
@@ -241,7 +245,6 @@ export async function auditWebSocketEndpoints(
         opts,
       );
     }
-
   }
 
   return diagnostics;

@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { isSupportedWebhookUrl } from '../reporters/webhook.js';
+import type { SlaCalculator } from './sla-calculator.js';
 
 export interface DiffResult {
   added: string[];
@@ -9,10 +11,36 @@ export interface DiffResult {
   url: string;
 }
 
+/**
+ * One poll's observation, handed to the optional {@link MonitorDaemonOptions.onPoll}
+ * callback (used by the Prometheus exporter to refresh its lint snapshot) and
+ * to the SLA calculator.
+ */
+export interface PollSample {
+  /** The response body, or `undefined` when the poll failed. */
+  body?: string;
+  /** Round-trip time in milliseconds. */
+  latencyMs: number;
+  /** HTTP status code, or `null` when no response arrived. */
+  statusCode: number | null;
+  /** Transport error detail, when the poll failed before a response. */
+  error?: string;
+}
+
 export interface MonitorDaemonOptions {
   url: string;
   interval?: number;
   webhookUrl?: string;
+  /**
+   * When set, every poll is recorded for SLA calculation. The daemon records
+   * at most one sample per {@link slaSampleIntervalMs} so a fast change-poll
+   * interval does not flood the history.
+   */
+  sla?: SlaCalculator;
+  /** Minimum spacing between SLA samples. Default 60 seconds. */
+  slaSampleIntervalMs?: number;
+  /** Called after every completed or failed poll. */
+  onPoll?: (sample: PollSample) => void | Promise<void>;
 }
 
 const DEFAULT_INTERVAL = 300;
@@ -21,6 +49,7 @@ const BASE_BACKOFF_MS = 1000;
 const DEFAULT_WEBHOOK_TIMEOUT_MS = 5000;
 const DEFAULT_WEBHOOK_RETRIES = 2;
 const DEFAULT_WEBHOOK_BACKOFF_MS = 250;
+const DEFAULT_SLA_SAMPLE_INTERVAL_MS = 60_000;
 
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
@@ -28,20 +57,32 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** True when the monitor target is an http(s) URL rather than a local path. */
+function isRemoteTarget(target: string): boolean {
+  return /^https?:\/\//i.test(target);
+}
+
 export class MonitorDaemon {
   readonly url: string;
   readonly interval: number;
   readonly webhookUrl: string | undefined;
+  readonly sla: SlaCalculator | undefined;
   lastHash: string | undefined;
   private lastBody: string | undefined;
   private backoffMs: number = BASE_BACKOFF_MS;
   private timer: NodeJS.Timeout | null = null;
   private running: boolean = false;
+  private lastSlaSampleMs = 0;
+  private readonly slaSampleIntervalMs: number;
+  private readonly onPoll: ((sample: PollSample) => void | Promise<void>) | undefined;
 
   constructor(options: MonitorDaemonOptions) {
     this.url = options.url;
     this.interval = options.interval ?? DEFAULT_INTERVAL;
     this.webhookUrl = options.webhookUrl;
+    this.sla = options.sla;
+    this.slaSampleIntervalMs = options.slaSampleIntervalMs ?? DEFAULT_SLA_SAMPLE_INTERVAL_MS;
+    this.onPoll = options.onPoll;
   }
 
   async start(): Promise<void> {
@@ -59,10 +100,21 @@ export class MonitorDaemon {
     }
   }
 
-  async poll(): Promise<void> {
-    try {
+  /** Fetches one response, or reads the local file the target names. */
+  private async fetchBody(): Promise<{ body: string; statusCode: number }> {
+    if (isRemoteTarget(this.url)) {
       const response = await fetch(this.url);
       const body = await response.text();
+      return { body, statusCode: response.status };
+    }
+    return { body: await readFile(this.url, 'utf8'), statusCode: 200 };
+  }
+
+  async poll(): Promise<void> {
+    const startedAt = Date.now();
+    try {
+      const { body, statusCode } = await this.fetchBody();
+      const latencyMs = Date.now() - startedAt;
       const hash = this.computeHash(body);
 
       if (this.lastHash !== undefined && hash !== this.lastHash) {
@@ -76,14 +128,43 @@ export class MonitorDaemon {
       this.lastBody = body;
       this.backoffMs = BASE_BACKOFF_MS;
 
+      await this.sample({ body, latencyMs, statusCode });
+      await this.onPoll?.({ body, latencyMs, statusCode });
+
       if (this.running) {
         this.timer = setTimeout(() => this.poll(), this.interval);
       }
-    } catch {
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const detail = error instanceof Error ? error.message : String(error);
+
+      await this.sample({ latencyMs, statusCode: null, error: detail });
+      await this.onPoll?.({ latencyMs, statusCode: null, error: detail });
+
       if (this.running) {
         this.timer = setTimeout(() => this.poll(), this.backoffMs);
         this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
       }
+    }
+  }
+
+  /** Records an SLA sample, at most once per {@link slaSampleIntervalMs}. */
+  private async sample(observation: PollSample): Promise<void> {
+    if (this.sla === undefined) return;
+    const now = Date.now();
+    if (this.lastSlaSampleMs !== 0 && now - this.lastSlaSampleMs < this.slaSampleIntervalMs) {
+      return;
+    }
+    this.lastSlaSampleMs = now;
+
+    try {
+      await this.sla.recordAndPersist({
+        latencyMs: observation.latencyMs,
+        statusCode: observation.statusCode,
+        ...(observation.error !== undefined ? { error: observation.error } : {}),
+      });
+    } catch {
+      // SLA persistence is best-effort; the monitor loop must keep running.
     }
   }
 

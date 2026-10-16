@@ -37,9 +37,7 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 
 /** The result of resolving AAAA records for one host. */
 export type Ipv6LookupResult =
-  | { kind: 'ok'; addresses: string[] }
-  | { kind: 'none' }
-  | { kind: 'error'; detail: string };
+  { kind: 'ok'; addresses: string[] } | { kind: 'none' } | { kind: 'error'; detail: string };
 
 /** Resolves the IPv6 addresses a hostname publishes. Injectable for tests. */
 export type Ipv6Resolver = (hostname: string) => Promise<Ipv6LookupResult>;
@@ -52,7 +50,11 @@ export type Ipv6ConnectionResult =
   | { kind: 'error'; detail: string };
 
 /** Dials one IPv6 address and reports how the connection ended. */
-export type Ipv6Connector = (address: string, port: number, timeoutMs: number) => Promise<Ipv6ConnectionResult>;
+export type Ipv6Connector = (
+  address: string,
+  port: number,
+  timeoutMs: number,
+) => Promise<Ipv6ConnectionResult>;
 
 export interface Ipv6AuditorOptions {
   rules?: RuleOverrides;
@@ -75,15 +77,15 @@ export const ipv6AuditorRules: Rule[] = [
     id: MISSING_IPV6_AAAA_RULE,
     category: 'network',
     severity: 'warning',
-    description:
-      'A declared endpoint host should publish a DNS AAAA record for IPv6-only clients',
+    description: 'A declared endpoint host should publish a DNS AAAA record for IPv6-only clients',
     run() {},
   },
   {
     id: IPV6_CONNECTION_TIMEOUT_RULE,
     category: 'network',
     severity: 'error',
-    description: 'A host with an AAAA record must accept a TCP connection over IPv6 within the timeout',
+    description:
+      'A host with an AAAA record must accept a TCP connection over IPv6 within the timeout',
     run() {},
   },
   {
@@ -104,7 +106,9 @@ function severityFor(
 ): Severity | undefined {
   const override = rules?.[rule];
   if (override === 'off') return undefined;
-  return override === 'error' || override === 'warning' || override === 'info' ? override : fallback;
+  return override === 'error' || override === 'warning' || override === 'info'
+    ? override
+    : fallback;
 }
 
 /** One host to probe, with the TOML field that named it. */
@@ -121,10 +125,7 @@ interface Ipv6Target {
  * clients must be able to download `/.well-known/stellar.toml` itself before
  * any service endpoint matters.
  */
-export function ipv6TargetsOf(
-  doc: Record<string, unknown>,
-  domain?: string,
-): Ipv6Target[] {
+export function ipv6TargetsOf(doc: Record<string, unknown>, domain?: string): Ipv6Target[] {
   const targets: Ipv6Target[] = [];
   const seen = new Set<string>();
 
@@ -262,7 +263,11 @@ export async function auditIpv6Reachability(
   const timeoutSeverity = severityFor(IPV6_CONNECTION_TIMEOUT_RULE, 'error', options.rules);
   const failedSeverity = severityFor(IPV6_CONNECTION_FAILED_RULE, 'warning', options.rules);
   // No findings worth a single DNS query: skip the network entirely.
-  if (missingSeverity === undefined && timeoutSeverity === undefined && failedSeverity === undefined) {
+  if (
+    missingSeverity === undefined &&
+    timeoutSeverity === undefined &&
+    failedSeverity === undefined
+  ) {
     return [];
   }
 

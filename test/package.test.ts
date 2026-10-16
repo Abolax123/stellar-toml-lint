@@ -24,12 +24,14 @@ describe('package metadata', () => {
     // deliberate decision rather than an accident. The @noble packages add
     // nothing to the install: @stellar/stellar-base already depends on them.
     // @yao-pkg/pkg is what scripts/build-binaries.mjs packs the release
-    // binaries with, so it ships as a regular dependency too.
+    // binaries with, so it ships as a regular dependency too. pdfmake backs
+    // the browser PDF compliance report exporter.
     expect(Object.keys(pkg.dependencies).sort()).toEqual([
       '@noble/curves',
       '@noble/hashes',
       '@stellar/stellar-base',
       '@yao-pkg/pkg',
+      'pdfmake',
       'smol-toml',
     ]);
   });

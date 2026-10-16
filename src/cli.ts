@@ -17,6 +17,7 @@ import { checkNetworkAccounts } from './network-checks.js';
 import { checkCorsPreflight } from './network/cors-preflight.js';
 import { checkCertExpiry } from './network/cert-expiry.js';
 import { auditIpv6Reachability } from './network/ipv6-auditor.js';
+import { auditHttpVersions } from './network/http-version-auditor.js';
 import { checkRateLimitResilience } from './network/rate-limit-tester.js';
 import { horizonUrlFor } from './network-checks.js';
 import { checkSignatureStateMachineFromDocument } from './security/signature-state-machine.js';
@@ -110,6 +111,7 @@ import {
   formatAnchorPlatformYaml,
 } from './generators/anchor-platform.js';
 import { generateOpenApiSpec } from './generators/openapi.js';
+import { formatJsonLd, generateJsonLd, validateJsonLd } from './generators/jsonld.js';
 import { generateDiagram, type GraphFormat } from './generators/diagram.js';
 import { deliverWebhooks, isSupportedWebhookUrl } from './reporters/webhook.js';
 import { runHealthCheck, formatHealthCheckTable } from './health-check.js';
@@ -120,6 +122,12 @@ import { runLspServer } from './lsp/server.js';
 import { getTomlJsonSchema } from './schema.js';
 import { generateCompletion, isCompletionShell } from './completion.js';
 import { MonitorDaemon } from './monitor/daemon.js';
+import { SlaCalculator } from './monitor/sla-calculator.js';
+import {
+  collectMetrics,
+  DEFAULT_METRICS_PORT,
+  PrometheusMetricsServer,
+} from './telemetry/prometheus-server.js';
 import { createMockServer, DEFAULT_MOCK_PORT, formatRoutingTable } from './mock/server.js';
 import {
   runMigration,
@@ -215,6 +223,9 @@ interface Cli {
   monitor?: boolean;
   interval?: number;
   webhookUrl?: string;
+  serveMetrics?: number;
+  slaStore?: string;
+  generateJsonLd?: string;
   migrate?: string;
   dryRun?: boolean;
   fix?: boolean;
@@ -348,8 +359,12 @@ OPTIONS
       --badge-svg <file>  Generate an SVG compliance badge
       --badge-json <file> Generate a Shields.io JSON endpoint
       --export-ap-config  Export Anchor Platform YAML config to stdout
-      --generate-openapi <file>
-                          Generate an OpenAPI 3.1 spec (json or yaml extension)
+       --generate-openapi <file>
+                           Generate an OpenAPI 3.1 spec (json or yaml extension)
+       --generate-jsonld [out.json]
+                           Generate Schema.org JSON-LD (Organization,
+                           FinancialProduct/Currency) for search indexing;
+                           prints to stdout when no output file is given
       --graph <fmt>       Generate architecture diagram: mermaid or dot
       --graph-contracts   Include Soroban contracts in diagram
       --contract-graph <fmt>
@@ -371,11 +386,21 @@ OPTIONS
         --migrate <target>  Run a code migration: sep41 or v2
         --fix               Apply safe autofixes to files
         --dry-run           Preview autofix or migration diff without modifying files
-       --monitor           Start a polling daemon that watches a URL for changes
+       --monitor           Start a polling daemon that watches a URL or local
+                           file for changes
        --interval <ms>     Polling interval in milliseconds (default 300)
        --on-change-webhook <url>
                            POST a JSON diff payload to a webhook when the
                            monitored URL changes
+       --serve-metrics [port]
+                           Serve Prometheus metrics on /metrics
+                           (text/plain; version=0.0.4), covering the
+                           compliance score, rule violations, TLS certificate
+                           expiry countdowns, and validator status (default
+                           port 9464). Works with --monitor or on its own
+       --sla-store <file>  Record probe latency, status codes, and errors into
+                           a JSON SLA database while --monitor runs, and flag
+                           a 30-day availability below 99.5%
        --serve-mock [port] Serve the file plus mock SEP-10 /auth, SEP-24 /info,
                            and SEP-38 /info and /prices endpoints on localhost
                            (default port 8080). Set
@@ -561,8 +586,12 @@ async function main(argv: string[]): Promise<number> {
               ? await verifySep30(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.verifySep8 ? await verifySep8(domainResult.parsed, fetchImpl, { rules }) : []),
-            ...(cli.verifySep8Webhook ? await verifySep8Webhook(domainResult.parsed, fetchImpl, { rules }) : []),
-            ...(cli.verifyIpfs ? await validateIpfsMetadata(domainResult.parsed, fetchImpl, { rules }) : []),
+            ...(cli.verifySep8Webhook
+              ? await verifySep8Webhook(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyIpfs
+              ? await validateIpfsMetadata(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(cli.verifySep38
               ? await verifySep38(domainResult.parsed, fetchImpl, { rules })
               : []),
@@ -593,6 +622,10 @@ async function main(argv: string[]): Promise<number> {
             // through the fixture transport, so hermetic runs skip it.
             ...(cli.mockFixtures === undefined
               ? await checkCertExpiry(domainResult.parsed, { rules })
+              : []),
+            // The ALPN probe opens its own TLS socket for the same reason.
+            ...(cli.mockFixtures === undefined
+              ? await auditHttpVersions(domainResult.parsed, { rules, domain: cli.domain })
               : []),
             // The peer-port probe dials raw TCP for the same reason.
             ...(cli.mockFixtures === undefined
@@ -650,7 +683,9 @@ async function main(argv: string[]): Promise<number> {
               : []),
           ];
           // Audit on-chain account data entries for SIGNING_KEY and ACCOUNTS (domain path)
-          const domainTomlSource = await (await fetchImpl(`https://${cli.domain}/.well-known/stellar.toml`)).text();
+          const domainTomlSource = await (
+            await fetchImpl(`https://${cli.domain}/.well-known/stellar.toml`)
+          ).text();
           networkDiagnostics.push(
             ...(await auditTomlAccountData(domainResult.parsed, domainTomlSource, fetchImpl, {
               rules,
@@ -859,6 +894,13 @@ async function main(argv: string[]): Promise<number> {
                 // Opens its own sockets, outside the fixture transport.
                 ...(cli.mockFixtures === undefined
                   ? await checkCertExpiry(fileResult.parsed, { rules })
+                  : []),
+                // TLS ALPN probe, outside the fixture transport.
+                ...(cli.mockFixtures === undefined
+                  ? await auditHttpVersions(fileResult.parsed, {
+                      rules,
+                      ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                    })
                   : []),
                 ...(cli.mockFixtures === undefined
                   ? await checkPeerPortReachability(fileResult.parsed, { rules })
@@ -1085,6 +1127,25 @@ async function main(argv: string[]): Promise<number> {
       }
     }
 
+    if (cli.generateJsonLd !== undefined) {
+      if (firstResult?.parsed === undefined) {
+        process.stderr.write('Cannot generate JSON-LD: the TOML was not parsed successfully.\n');
+      } else {
+        const document = generateJsonLd(firstResult.parsed);
+        const validation = validateJsonLd(document);
+        if (!validation.valid) {
+          process.stderr.write(`JSON-LD validation failed:\n${validation.errors.join('\n')}\n`);
+          return 2;
+        }
+        const output = formatJsonLd(document);
+        if (cli.generateJsonLd === '-') {
+          process.stdout.write(output);
+        } else {
+          await writeFile(cli.generateJsonLd, output);
+        }
+      }
+    }
+
     if (cli.graph && firstResult?.parsed) {
       const diagram = generateDiagram(firstResult.parsed, {
         format: cli.graph,
@@ -1158,13 +1219,17 @@ async function main(argv: string[]): Promise<number> {
       !cli.count &&
       supportsDashboard(process.stdout);
 
-    if (!cli.exportApConfig && dashboard) {
+    // A generator writing its document to stdout replaces the lint report;
+    // appending the two would produce an unparseable stream for both.
+    const emitsOnlyDocument = cli.exportApConfig === true || cli.generateJsonLd === '-';
+
+    if (!emitsOnlyDocument && dashboard) {
       await runDashboard(
         results,
         { stdin: process.stdin, stdout: process.stdout },
         { color, ...(cli.quiet ? { filter: 'error' as const } : {}) },
       );
-    } else if (!cli.exportApConfig) {
+    } else if (!emitsOnlyDocument) {
       // `--silent-success` follows the Unix "silence is golden" contract: a run
       // with no diagnostics writes nothing at all, so a hook or a script only
       // has to look at the exit code. The moment there is a diagnostic the
@@ -1289,19 +1354,8 @@ async function main(argv: string[]): Promise<number> {
   if (cli.serveMock !== undefined) {
     return serveMock(paths[0] as string, cli.serveMock);
   }
-  if (cli.monitor) {
-    const daemon = new MonitorDaemon({
-      url: cli.domain !== undefined ? `https://${cli.domain}/.well-known/stellar.toml` : paths[0]!,
-      interval: cli.interval,
-      webhookUrl: cli.webhookUrl,
-    });
-    await daemon.start();
-    return new Promise<number>(() => {
-      process.on('SIGINT', () => {
-        daemon.stop();
-        process.exit(0);
-      });
-    });
+  if (cli.monitor || cli.serveMetrics !== undefined) {
+    return runMonitorDaemon(cli, paths);
   }
   if (cli.watch) {
     return watchFiles(cli.domain ? [] : paths, cli, color, runLint);
@@ -1844,6 +1898,40 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.monitor = true;
         break;
 
+      case '--serve-metrics': {
+        // Like --serve-mock, the port is optional: only a bare number after
+        // the flag is taken as one, so a file path is left for the next
+        // iteration (e.g. `--monitor --serve-metrics .`).
+        const next = argv[i + 1];
+        if (next !== undefined && /^\d+$/.test(next)) {
+          const port = Number(next);
+          if (port > 65535) throw new Error('--serve-metrics expects a port between 0 and 65535.');
+          cli.serveMetrics = port;
+          i++;
+        } else {
+          cli.serveMetrics = DEFAULT_METRICS_PORT;
+        }
+        break;
+      }
+
+      case '--sla-store':
+        cli.slaStore = requireValue(argv, ++i, arg);
+        break;
+
+      case '--generate-jsonld': {
+        // The output path is optional: a following `.json` argument is the
+        // destination, anything else stays a positional input path and the
+        // document goes to stdout.
+        const next = argv[i + 1];
+        if (next !== undefined && /\.json$/i.test(next)) {
+          cli.generateJsonLd = next;
+          i++;
+        } else {
+          cli.generateJsonLd = '-';
+        }
+        break;
+      }
+
       case '--interval': {
         const value = Number(requireValue(argv, ++i, arg));
         if (!Number.isInteger(value) || value < 1) {
@@ -1906,6 +1994,105 @@ function parseArgs(argv: string[]): Cli | 'handled' {
   }
 
   return cli;
+}
+
+/**
+ * Runs the `--monitor` polling daemon and/or the `--serve-metrics` Prometheus
+ * exporter until SIGINT or SIGTERM.
+ *
+ * The metrics endpoint re-lints the most recent body on every scrape, so the
+ * exported compliance score and rule counts always match what the daemon last
+ * saw. The certificate-expiry and validator probes run at the scrape interval
+ * Prometheus controls, not at the change-poll rate. With `--sla-store` the
+ * daemon samples a poll at most once a minute into the history behind the
+ * 7/30/90-day availability calculation.
+ */
+async function runMonitorDaemon(cli: Cli, paths: string[]): Promise<number> {
+  const target =
+    cli.domain !== undefined ? `https://${cli.domain}/.well-known/stellar.toml` : paths[0]!;
+
+  const sla = new SlaCalculator({
+    ...(cli.slaStore !== undefined ? { path: cli.slaStore } : {}),
+  });
+  if (cli.slaStore !== undefined) await sla.load();
+
+  // The last body the daemon (or stdin) supplied, so a scrape never has to
+  // re-fetch the target just to export a score.
+  let latestSource: string | undefined;
+  if (target === '-') {
+    try {
+      latestSource = await readStdin();
+    } catch {
+      latestSource = undefined;
+    }
+  }
+
+  const metrics =
+    cli.serveMetrics !== undefined
+      ? new PrometheusMetricsServer({
+          port: cli.serveMetrics,
+          keepAlive: cli.monitor !== true,
+          collect: async () => {
+            let source = latestSource;
+            if (source === undefined && target !== '-') {
+              try {
+                source = await readFile(target, 'utf8');
+              } catch {
+                // The exporter keeps serving empty metrics until the file
+                // exists, so a Kubernetes sidecar can start before the mount.
+                source = undefined;
+              }
+            }
+            if (source === undefined) return {};
+            const result = lint(source, { rules: cli.rules });
+            const doc = (result.parsed ?? {}) as Record<string, unknown>;
+            return collectMetrics(doc, result);
+          },
+        })
+      : undefined;
+
+  if (metrics !== undefined) {
+    try {
+      await metrics.start();
+    } catch (error) {
+      process.stderr.write(`Could not start the metrics server: ${message(error)}\n`);
+      return 2;
+    }
+    process.stdout.write(`stellar-toml-lint metrics exporter listening on ${metrics.url()}\n`);
+  }
+
+  const daemon = cli.monitor
+    ? new MonitorDaemon({
+        url: target,
+        interval: cli.interval,
+        webhookUrl: cli.webhookUrl,
+        sla,
+        onPoll: (sample) => {
+          if (sample.body !== undefined) latestSource = sample.body;
+        },
+      })
+    : undefined;
+
+  if (daemon !== undefined) await daemon.start();
+
+  return new Promise<number>((resolve) => {
+    let settled = false;
+    const shutdown = (): void => {
+      if (settled) return;
+      settled = true;
+      daemon?.stop();
+      if (metrics !== undefined) {
+        void metrics.stop().then(
+          () => resolve(0),
+          () => resolve(0),
+        );
+      } else {
+        resolve(0);
+      }
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+  });
 }
 
 /**

@@ -16,9 +16,15 @@ import type { Diagnostic, Rule, RuleOverrides, Severity } from '../types.js';
 import { isString, isUrl } from '../predicates.js';
 
 // node:crypto is dynamically imported to avoid bundling in browser builds
-async function getCreateHash(): Promise<(algorithm: string) => { update: (data: string | Uint8Array) => { digest: (encoding?: string) => string | Uint8Array } }> {
+async function getCreateHash(): Promise<
+  (algorithm: string) => {
+    update: (data: string | Uint8Array) => { digest: (encoding?: string) => string | Uint8Array };
+  }
+> {
   const { createHash } = await import('node:crypto');
-  return createHash as unknown as (algorithm: string) => { update: (data: string | Uint8Array) => { digest: (encoding?: string) => string | Uint8Array } };
+  return createHash as unknown as (algorithm: string) => {
+    update: (data: string | Uint8Array) => { digest: (encoding?: string) => string | Uint8Array };
+  };
 }
 
 // CID parsing constants
@@ -200,11 +206,9 @@ function parseCidV0(b58: string): ParsedCid | null {
  */
 function parseCidV1(str: string): ParsedCid | null {
   let decoded: Uint8Array;
-  let prefix = '';
 
   if (str.startsWith('b')) {
     // Base32 (bafy...)
-    prefix = 'b';
     try {
       decoded = base32Decode(str.slice(1));
     } catch {
@@ -212,7 +216,6 @@ function parseCidV1(str: string): ParsedCid | null {
     }
   } else if (str.startsWith('z')) {
     // Base58 (z...)
-    prefix = 'z';
     try {
       decoded = base58Decode(str.slice(1));
     } catch {
@@ -404,7 +407,10 @@ export async function fetchCidFromGateways(
 /**
  * Determines expected MIME type from the TOML path context.
  */
-function expectedMimeForPath(path: string, explicitMap?: Record<string, string>): string | undefined {
+function expectedMimeForPath(
+  path: string,
+  explicitMap?: Record<string, string>,
+): string | undefined {
   if (explicitMap && explicitMap[path]) return explicitMap[path];
 
   const lower = path.toLowerCase();
@@ -444,7 +450,12 @@ export async function validateCid(
   const timeoutMs = options.timeoutMs ?? 15_000;
   const expectedMime = expectedMimeForPath(path, options.expectedMimeByPath);
 
-  const finding = (rule: string, fallback: 'error' | 'warning', message: string, suggestion?: string): Diagnostic[] => {
+  const finding = (
+    rule: string,
+    fallback: 'error' | 'warning',
+    message: string,
+    suggestion?: string,
+  ): Diagnostic[] => {
     const severity = severityFor(rule, fallback, options.rules);
     if (severity === undefined) return [];
     return [
@@ -559,8 +570,14 @@ export async function validateIpfsMetadata(
   const cidFields = [
     { path: 'DOCUMENTATION.ORG_LOGO', value: documentation.ORG_LOGO },
     { path: 'DOCUMENTATION.ORG_DESCRIPTION', value: documentation.ORG_DESCRIPTION },
-    { path: 'DOCUMENTATION.ORG_PHYSICAL_ADDRESS_ATTESTATION', value: documentation.ORG_PHYSICAL_ADDRESS_ATTESTATION },
-    { path: 'DOCUMENTATION.ORG_PHONE_NUMBER_ATTESTATION', value: documentation.ORG_PHONE_NUMBER_ATTESTATION },
+    {
+      path: 'DOCUMENTATION.ORG_PHYSICAL_ADDRESS_ATTESTATION',
+      value: documentation.ORG_PHYSICAL_ADDRESS_ATTESTATION,
+    },
+    {
+      path: 'DOCUMENTATION.ORG_PHONE_NUMBER_ATTESTATION',
+      value: documentation.ORG_PHONE_NUMBER_ATTESTATION,
+    },
   ];
 
   // Add currency image fields
@@ -575,10 +592,16 @@ export async function validateIpfsMetadata(
           cidFields.push({ path: `CURRENCIES[${index}].toml`, value: c.toml });
         }
         if (isString(c.attestation_of_reserve)) {
-          cidFields.push({ path: `CURRENCIES[${index}].attestation_of_reserve`, value: c.attestation_of_reserve });
+          cidFields.push({
+            path: `CURRENCIES[${index}].attestation_of_reserve`,
+            value: c.attestation_of_reserve,
+          });
         }
         if (isString(c.redemption_instructions)) {
-          cidFields.push({ path: `CURRENCIES[${index}].redemption_instructions`, value: c.redemption_instructions });
+          cidFields.push({
+            path: `CURRENCIES[${index}].redemption_instructions`,
+            value: c.redemption_instructions,
+          });
         }
       }
     }

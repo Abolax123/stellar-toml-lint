@@ -49,19 +49,25 @@ function fetchServer(routes: Routes): typeof fetch {
 
 describe('SEP-12 customer deletion verifier', () => {
   it('passes when DELETE /customer is implemented and record is purged', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({ success: true }, 200),
-      getCustomer: () => jsonResponse({ id: 'cust-1', status: 'DELETED' }),
-    }));
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({ success: true }, 200),
+        getCustomer: () => jsonResponse({ id: 'cust-1', status: 'DELETED' }),
+      }),
+    );
     expect(diagnostics).toEqual([]);
   });
 
   it('asserts sep12/delete-customer-unsupported when DELETE returns 405', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({ error: 'Method Not Allowed' }, 405),
-    }));
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({ error: 'Method Not Allowed' }, 405),
+      }),
+    );
 
     const hits = diagnostics.filter((d) => d.rule === DELETE_CUSTOMER_UNSUPPORTED_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -70,10 +76,13 @@ describe('SEP-12 customer deletion verifier', () => {
   });
 
   it('asserts sep12/delete-customer-unsupported when DELETE returns 501', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({ error: 'Not Implemented' }, 501),
-    }));
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({ error: 'Not Implemented' }, 501),
+      }),
+    );
 
     const hits = diagnostics.filter((d) => d.rule === DELETE_CUSTOMER_UNSUPPORTED_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -82,10 +91,13 @@ describe('SEP-12 customer deletion verifier', () => {
   });
 
   it('asserts sep12/delete-customer-unsupported when DELETE returns 404', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({ error: 'Not Found' }, 404),
-    }));
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({ error: 'Not Found' }, 404),
+      }),
+    );
 
     const hits = diagnostics.filter((d) => d.rule === DELETE_CUSTOMER_UNSUPPORTED_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -93,11 +105,14 @@ describe('SEP-12 customer deletion verifier', () => {
   });
 
   it('asserts sep12/customer-record-retention-failure when GET after DELETE returns active status', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({}, 200),
-      getCustomer: () => jsonResponse({ id: 'cust-1', status: 'ACCEPTED' }),
-    }));
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({}, 200),
+        getCustomer: () => jsonResponse({ id: 'cust-1', status: 'ACCEPTED' }),
+      }),
+    );
 
     const hits = diagnostics.filter((d) => d.rule === CUSTOMER_RECORD_RETENTION_FAILURE_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -106,11 +121,14 @@ describe('SEP-12 customer deletion verifier', () => {
   });
 
   it('asserts sep12/customer-record-retention-failure when GET after DELETE returns PROCESSING', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({}, 200),
-      getCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-    }));
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({}, 200),
+        getCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+      }),
+    );
 
     const hits = diagnostics.filter((d) => d.rule === CUSTOMER_RECORD_RETENTION_FAILURE_RULE);
     expect(hits.length).toBeGreaterThan(0);
@@ -127,12 +145,16 @@ describe('SEP-12 customer deletion verifier', () => {
   });
 
   it('honours severity overrides', async () => {
-    const diagnostics = await verifySep12Deletion(DOC, fetchServer({
-      putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
-      deleteCustomer: () => jsonResponse({ error: 'Method Not Allowed' }, 405),
-    }), {
-      rules: { [DELETE_CUSTOMER_UNSUPPORTED_RULE]: 'off' },
-    });
+    const diagnostics = await verifySep12Deletion(
+      DOC,
+      fetchServer({
+        putCustomer: () => jsonResponse({ id: 'cust-1', status: 'PROCESSING' }),
+        deleteCustomer: () => jsonResponse({ error: 'Method Not Allowed' }, 405),
+      }),
+      {
+        rules: { [DELETE_CUSTOMER_UNSUPPORTED_RULE]: 'off' },
+      },
+    );
     expect(diagnostics.filter((d) => d.rule === DELETE_CUSTOMER_UNSUPPORTED_RULE)).toEqual([]);
   });
 });

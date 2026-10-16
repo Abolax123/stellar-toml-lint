@@ -22,10 +22,7 @@
 import { lint, lintDomain } from './lint.js';
 import { UNKNOWN_TLS_SESSION } from './tls.js';
 import type { LintOptions, LintResult } from './types.js';
-import {
-  generateCompliancePDF,
-  downloadCompliancePDF,
-} from './browser/pdf-exporter.js';
+import { generateCompliancePDF, downloadCompliancePDF } from './browser/pdf-exporter.js';
 import type { ComplianceReportData, PDFExportOptions } from './browser/pdf-exporter.js';
 
 /** What this entry point can and cannot do, for callers that branch on it. */

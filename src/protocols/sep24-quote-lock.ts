@@ -113,7 +113,9 @@ export async function verifySep24QuoteLock(
 
   const preferred = doc.TRANSFER_SERVER_SEP0024;
   const fallback = doc.TRANSFER_SERVER;
-  const server = normalizeTransferServer(isString(preferred) && isUrl(preferred) ? preferred : fallback);
+  const server = normalizeTransferServer(
+    isString(preferred) && isUrl(preferred) ? preferred : fallback,
+  );
   if (!server) return diagnostics;
 
   const currencies = currenciesOf(doc).filter(
@@ -161,14 +163,17 @@ export async function verifySep24QuoteLock(
 
     let pollResponse: Response;
     try {
-      pollResponse = await fetchImpl(`${server}/transactions/${encodeURIComponent(transactionId)}`, {
-        method: 'GET',
-        headers: {
-          accept: 'application/json',
-          authorization: `Bearer ${TEST_JWT}`,
+      pollResponse = await fetchImpl(
+        `${server}/transactions/${encodeURIComponent(transactionId)}`,
+        {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+            authorization: `Bearer ${TEST_JWT}`,
+          },
+          redirect: 'follow',
         },
-        redirect: 'follow',
-      });
+      );
     } catch {
       break;
     }

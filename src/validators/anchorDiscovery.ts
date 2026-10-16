@@ -104,8 +104,7 @@ export const anchorDiscoveryRules: Rule[] = [
     id: PROFILE_OUT_OF_SYNC_RULE,
     category: 'network',
     severity: 'warning',
-    description:
-      'Directory listing metadata (ORG_NAME, ORG_URL, ACCOUNTS) must match stellar.toml',
+    description: 'Directory listing metadata (ORG_NAME, ORG_URL, ACCOUNTS) must match stellar.toml',
     run() {},
   },
   {
@@ -118,7 +117,9 @@ export const anchorDiscoveryRules: Rule[] = [
   },
 ];
 
-export const anchorDiscoveryRuleIds: readonly string[] = anchorDiscoveryRules.map((rule) => rule.id);
+export const anchorDiscoveryRuleIds: readonly string[] = anchorDiscoveryRules.map(
+  (rule) => rule.id,
+);
 
 function severityFor(
   rule: string,
@@ -127,7 +128,9 @@ function severityFor(
 ): Severity | undefined {
   const override = rules?.[rule];
   if (override === 'off') return undefined;
-  return override === 'error' || override === 'warning' || override === 'info' ? override : fallback;
+  return override === 'error' || override === 'warning' || override === 'info'
+    ? override
+    : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -144,7 +147,10 @@ function normalizeName(value: string): string {
 
 /** Normalizes a hostname for comparison: lowercase, no `www.`, no trailing dot. */
 function normalizeHost(value: string): string {
-  return value.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  return value
+    .toLowerCase()
+    .replace(/^www\./, '')
+    .replace(/\.$/, '');
 }
 
 /**
@@ -232,10 +238,7 @@ export function advertisedSepsOf(entry: DirectoryEntry): string[] {
 }
 
 /** The anchor domain, from `--domain` or `DOCUMENTATION.ORG_URL`. */
-export function anchorDomainOf(
-  doc: Record<string, unknown>,
-  domain?: string,
-): string | undefined {
+export function anchorDomainOf(doc: Record<string, unknown>, domain?: string): string | undefined {
   if (isString(domain) && domain.trim() !== '') {
     const host = hostOf(
       domain.includes('://') ? domain : `https://${domain.split('/')[0] ?? domain}`,

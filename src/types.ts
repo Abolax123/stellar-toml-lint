@@ -22,6 +22,7 @@ export type RuleCategory =
   | 'network'
   | 'policy'
   | 'sep12'
+  | 'monitor'
   | 'codemod';
 
 /** A 1-based position in the source file. */

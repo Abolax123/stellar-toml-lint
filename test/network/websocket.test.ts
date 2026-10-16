@@ -5,13 +5,16 @@ import {
   WEBSOCKET_PING_TIMEOUT_RULE,
 } from '../../src/network/websocket-auditor.js';
 
+const READY_STATE_CONNECTING = 0;
+const READY_STATE_OPEN = 1;
+
 describe('WebSocket Auditor', () => {
   const mockWebSocket = {
     onopen: null as ((event: Event) => void) | null,
     onerror: null as ((event: Event) => void) | null,
     onclose: null as ((event: CloseEvent) => void) | null,
     onpong: null as ((event: Event) => void) | null,
-    readyState: WebSocket.CONNECTING as number,
+    readyState: READY_STATE_CONNECTING,
     ping: vi.fn(),
     close: vi.fn(),
   };
@@ -20,7 +23,10 @@ describe('WebSocket Auditor', () => {
 
   beforeEach(() => {
     OriginalWebSocket = global.WebSocket;
-    vi.stubGlobal('WebSocket', vi.fn(() => mockWebSocket));
+    vi.stubGlobal(
+      'WebSocket',
+      vi.fn(() => mockWebSocket),
+    );
   });
 
   afterEach(() => {
@@ -30,10 +36,14 @@ describe('WebSocket Auditor', () => {
 
   it('passes when WebSocket connects successfully', async () => {
     const doc = { WEBSOCKET_URL: 'wss://example.com/stream' };
-    const connectPromise = auditWebSocketEndpoints(doc, { handshakeTimeout: 100, pingCount: 1, pingTimeout: 100 });
+    const connectPromise = auditWebSocketEndpoints(doc, {
+      handshakeTimeout: 100,
+      pingCount: 1,
+      pingTimeout: 100,
+    });
 
     // Simulate successful connection
-    mockWebSocket.readyState = WebSocket.OPEN;
+    mockWebSocket.readyState = READY_STATE_OPEN;
     mockWebSocket.onopen?.(new Event('open'));
 
     // Simulate pong
@@ -48,7 +58,11 @@ describe('WebSocket Auditor', () => {
 
   it('reports handshake failure', async () => {
     const doc = { WEBSOCKET_URL: 'wss://unreachable.example.com/stream' };
-    const connectPromise = auditWebSocketEndpoints(doc, { handshakeTimeout: 100, pingCount: 1, pingTimeout: 1000 });
+    const connectPromise = auditWebSocketEndpoints(doc, {
+      handshakeTimeout: 100,
+      pingCount: 1,
+      pingTimeout: 1000,
+    });
 
     // Simulate connection error
     setTimeout(() => {
@@ -57,22 +71,31 @@ describe('WebSocket Auditor', () => {
 
     const diagnostics = await connectPromise;
 
-    const failures = diagnostics.filter((d: { rule: string; severity: string }) => d.rule === WEBSOCKET_HANDSHAKE_FAILED_RULE && d.severity === 'error');
+    const failures = diagnostics.filter(
+      (d: { rule: string; severity: string }) =>
+        d.rule === WEBSOCKET_HANDSHAKE_FAILED_RULE && d.severity === 'error',
+    );
     expect(failures.length).toBeGreaterThan(0);
   });
 
   it('reports ping timeout', async () => {
     const doc = { WEBSOCKET_URL: 'wss://slow.example.com/stream' };
-    const connectPromise = auditWebSocketEndpoints(doc, { handshakeTimeout: 5000, pingCount: 2, pingTimeout: 100 });
+    const connectPromise = auditWebSocketEndpoints(doc, {
+      handshakeTimeout: 5000,
+      pingCount: 2,
+      pingTimeout: 100,
+    });
 
     // Simulate successful connection
-    mockWebSocket.readyState = WebSocket.OPEN;
+    mockWebSocket.readyState = READY_STATE_OPEN;
     mockWebSocket.onopen?.(new Event('open'));
 
     // Don't send pong - let it timeout
     const diagnostics = await connectPromise;
 
-    const timeouts = diagnostics.filter((d: { rule: string }) => d.rule === WEBSOCKET_PING_TIMEOUT_RULE);
+    const timeouts = diagnostics.filter(
+      (d: { rule: string }) => d.rule === WEBSOCKET_PING_TIMEOUT_RULE,
+    );
     expect(timeouts.length).toBeGreaterThan(0);
   });
 
@@ -91,7 +114,9 @@ describe('WebSocket Auditor', () => {
 
     const diagnostics = await connectPromise;
 
-    const failures = diagnostics.filter((d: { rule: string }) => d.rule === WEBSOCKET_HANDSHAKE_FAILED_RULE);
+    const failures = diagnostics.filter(
+      (d: { rule: string }) => d.rule === WEBSOCKET_HANDSHAKE_FAILED_RULE,
+    );
     expect(failures.length).toBe(0);
   });
 
