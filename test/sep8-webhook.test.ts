@@ -10,7 +10,7 @@ import {
   IDEMPOTENCY_VIOLATION_RULE,
   WEBHOOK_LATENCY_RULE,
 } from '../src/sep8/webhookCoordinator.js';
-import { xdr } from '@stellar/stellar-base';
+import { Keypair } from '@stellar/stellar-base';
 
 describe('SEP-8 webhook coordinator', () => {
   describe('buildSyntheticSep8Transaction', () => {
@@ -29,12 +29,15 @@ describe('SEP-8 webhook coordinator', () => {
     });
 
     it('builds a valid native asset transaction', () => {
-      const result = buildSyntheticSep8Transaction('XLM', undefined, 'Test SDF Network ; September 2015');
+      const result = buildSyntheticSep8Transaction(
+        'XLM',
+        undefined,
+        'Test SDF Network ; September 2015',
+      );
       expect(isValidTransactionXdr(result.txXdr)).toBe(true);
     });
 
     it('uses provided source and destination keypairs', () => {
-      const { Keypair } = require('@stellar/stellar-base');
       const source = Keypair.random();
       const dest = Keypair.random();
 
@@ -102,7 +105,9 @@ describe('SEP-8 webhook coordinator', () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => { throw new Error('Not JSON'); },
+        json: async () => {
+          throw new Error('Not JSON');
+        },
       });
 
       const doc = {

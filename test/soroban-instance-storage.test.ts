@@ -2,14 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { Address, xdr } from '@stellar/stellar-base';
 import {
   auditContractInstanceStorage,
-  auditTomlInstanceStorage,
   instanceStorageAuditorRules,
   CORRUPTED_ENTRY_RULE,
   DATA_MISMATCH_RULE,
 } from '../src/soroban/instance-storage-auditor.js';
 
 const CONTRACT = 'CACTZSQPCQSSZ5YG3PI3N7WO6JEERKEUHTPILKB4MBANF2K4D2UHKDDU';
-const NETWORK = 'Test SDF Network ; September 2015';
 const RPC = 'https://soroban-testnet.stellar.org';
 const WASM = Buffer.alloc(32);
 
@@ -29,23 +27,13 @@ function instanceEntryXdr(storage: xdr.ScMapEntry[], stellarAsset = false): stri
   return entry.toXDR('base64');
 }
 
-function codeEntryXdr(): string {
-  const entry = xdr.LedgerEntryData.contractCode(
-    new xdr.ContractCodeEntry({
-      ext: xdr.ContractCodeEntryExt.fromXDR(Buffer.alloc(4), 'raw'),
-      hash: Buffer.alloc(32),
-      code: Buffer.alloc(32),
-    }),
-  );
-  return entry.toXDR('base64');
-}
-
 function makeStorage(entries: { key: string; val: xdr.ScVal }[]): xdr.ScMapEntry[] {
-  return entries.map((e) =>
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol(e.key),
-      val: e.val,
-    }),
+  return entries.map(
+    (e) =>
+      new xdr.ScMapEntry({
+        key: xdr.ScVal.scvSymbol(e.key),
+        val: e.val,
+      }),
   );
 }
 
@@ -105,7 +93,12 @@ describe('Soroban instance storage auditor', () => {
   it('passes for valid instance storage with matching decimal', async () => {
     const storage = makeStorage([
       { key: 'decimal', val: xdr.ScVal.scvU32(7) },
-      { key: 'admin', val: xdr.ScVal.scvAddress(new Address('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF').toScAddress()) },
+      {
+        key: 'admin',
+        val: xdr.ScVal.scvAddress(
+          new Address('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF').toScAddress(),
+        ),
+      },
     ]);
     const instanceXdr = instanceEntryXdr(storage);
 
@@ -120,9 +113,7 @@ describe('Soroban instance storage auditor', () => {
   });
 
   it('reports soroban/instance-storage-data-mismatch when decimal disagrees with display_decimals', async () => {
-    const storage = makeStorage([
-      { key: 'decimal', val: xdr.ScVal.scvU32(6) },
-    ]);
+    const storage = makeStorage([{ key: 'decimal', val: xdr.ScVal.scvU32(6) }]);
     const instanceXdr = instanceEntryXdr(storage);
 
     const { fetchImpl } = rpcMock({
@@ -143,9 +134,7 @@ describe('Soroban instance storage auditor', () => {
   });
 
   it('reports soroban/corrupted-instance-storage-entry when admin is not an Address', async () => {
-    const storage = makeStorage([
-      { key: 'admin', val: xdr.ScVal.scvString('not-an-address') },
-    ]);
+    const storage = makeStorage([{ key: 'admin', val: xdr.ScVal.scvString('not-an-address') }]);
     const instanceXdr = instanceEntryXdr(storage);
 
     const { fetchImpl } = rpcMock({
@@ -166,9 +155,7 @@ describe('Soroban instance storage auditor', () => {
   });
 
   it('reports soroban/corrupted-instance-storage-entry when decimal is not U32', async () => {
-    const storage = makeStorage([
-      { key: 'decimal', val: xdr.ScVal.scvString('7') },
-    ]);
+    const storage = makeStorage([{ key: 'decimal', val: xdr.ScVal.scvString('7') }]);
     const instanceXdr = instanceEntryXdr(storage);
 
     const { fetchImpl } = rpcMock({
@@ -189,9 +176,7 @@ describe('Soroban instance storage auditor', () => {
   });
 
   it('warns when admin key is missing', async () => {
-    const storage = makeStorage([
-      { key: 'decimal', val: xdr.ScVal.scvU32(7) },
-    ]);
+    const storage = makeStorage([{ key: 'decimal', val: xdr.ScVal.scvU32(7) }]);
     const instanceXdr = instanceEntryXdr(storage);
 
     const { fetchImpl } = rpcMock({

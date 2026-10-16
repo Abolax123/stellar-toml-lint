@@ -95,37 +95,40 @@ describe('Memory leak detection for daemon mode', () => {
   });
 });
 
-(hasExposedGc ? describe : describe.skip)('CST node and event listener cleanup verification', () => {
-  it('should not retain CST nodes after lint completes', () => {
-    const snapshotBefore = takeHeapSnapshot();
-    
-    for (let i = 0; i < 1000; i++) {
-      lint(SYNTHETIC_TOML);
-    }
-    
-    const snapshotAfter = takeHeapSnapshot();
-    const delta = snapshotAfter.usedHeapSize - snapshotBefore.usedHeapSize;
-    
-    expect(delta).toBeLessThan(500 * 1024);
-  });
+(hasExposedGc ? describe : describe.skip)(
+  'CST node and event listener cleanup verification',
+  () => {
+    it('should not retain CST nodes after lint completes', () => {
+      const snapshotBefore = takeHeapSnapshot();
 
-  it('should not leak memory when linting malformed TOML', () => {
-    const malformedToml = `
+      for (let i = 0; i < 1000; i++) {
+        lint(SYNTHETIC_TOML);
+      }
+
+      const snapshotAfter = takeHeapSnapshot();
+      const delta = snapshotAfter.usedHeapSize - snapshotBefore.usedHeapSize;
+
+      expect(delta).toBeLessThan(500 * 1024);
+    });
+
+    it('should not leak memory when linting malformed TOML', () => {
+      const malformedToml = `
 VERSION = "1.0.0"
 [[CURRENCIES]]
 code = "USD"
 issuer = "INVALID_ISSUER"
     `;
-    
-    const snapshotBefore = takeHeapSnapshot();
-    
-    for (let i = 0; i < 1000; i++) {
-      lint(malformedToml);
-    }
-    
-    const snapshotAfter = takeHeapSnapshot();
-    const delta = snapshotAfter.usedHeapSize - snapshotBefore.usedHeapSize;
-    
-    expect(delta).toBeLessThan(500 * 1024);
-  });
-});
+
+      const snapshotBefore = takeHeapSnapshot();
+
+      for (let i = 0; i < 1000; i++) {
+        lint(malformedToml);
+      }
+
+      const snapshotAfter = takeHeapSnapshot();
+      const delta = snapshotAfter.usedHeapSize - snapshotBefore.usedHeapSize;
+
+      expect(delta).toBeLessThan(500 * 1024);
+    });
+  },
+);

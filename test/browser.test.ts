@@ -370,6 +370,7 @@ describe('browser bundle artifacts and sandbox', () => {
       TextDecoder,
       URL,
       URLSearchParams,
+      navigator: { userAgent: '' },
     };
     sandbox['window'] = sandbox;
     sandbox['globalThis'] = sandbox;

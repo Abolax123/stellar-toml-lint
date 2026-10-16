@@ -50,7 +50,8 @@ describe('IPFS CID parsing', () => {
 
 describe('extractCids', () => {
   it('extracts CIDs from IPFS gateway URLs', () => {
-    const text = 'Check https://ipfs.io/ipfs/QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u and https://cloudflare-ipfs.com/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi';
+    const text =
+      'Check https://ipfs.io/ipfs/QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u and https://cloudflare-ipfs.com/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi';
     const cids = extractCids(text);
     expect(cids).toHaveLength(2);
     expect(cids[0]).toBe('QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u');
@@ -106,17 +107,12 @@ describe('validateCid', () => {
   });
 
   it('reports ipfs/cid-hash-mismatch when content does not match CID', async () => {
-    let callCount = 0;
-    mockFetch.mockImplementation(async (...args) => {
-      callCount++;
-      console.log('Mock fetch called', callCount, args[0]);
-      return {
-        ok: true,
-        status: 200,
-        headers: { get: () => 'text/plain' },
-        arrayBuffer: async () => new TextEncoder().encode('different content').buffer,
-      };
-    });
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/plain' },
+      arrayBuffer: async () => new TextEncoder().encode('different content').buffer,
+    }));
 
     const diagnostics = await validateCid(
       'QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u',
@@ -124,7 +120,6 @@ describe('validateCid', () => {
       mockFetch,
       { gateways: ['https://gateway/'], timeoutMs: 60_000 },
     );
-    console.log('Call count:', callCount);
 
     expect(diagnostics).toContainEqual(
       expect.objectContaining({
@@ -158,7 +153,7 @@ describe('validateIpfsMetadata', () => {
     });
 
     const diagnostics = await validateIpfsMetadata(doc, mockFetch);
-    expect(diagnostics.filter(d => d.rule === 'ipfs/cid-hash-mismatch')).toHaveLength(1);
+    expect(diagnostics.filter((d) => d.rule === 'ipfs/cid-hash-mismatch')).toHaveLength(1);
   });
 
   it('finds CIDs in CURRENCIES image fields and reports hash mismatch', async () => {
@@ -179,7 +174,7 @@ describe('validateIpfsMetadata', () => {
     });
 
     const diagnostics = await validateIpfsMetadata(doc, mockFetch);
-    expect(diagnostics.filter(d => d.rule === 'ipfs/cid-hash-mismatch')).toHaveLength(1);
+    expect(diagnostics.filter((d) => d.rule === 'ipfs/cid-hash-mismatch')).toHaveLength(1);
   });
 });
 

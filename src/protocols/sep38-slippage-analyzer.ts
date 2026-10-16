@@ -115,9 +115,10 @@ async function fetchPrices(
   }
 }
 
-function analyzePriceCurve(
-  pricePoints: PricePoint[],
-): { isMonotonic: boolean; maxSlippage: number } {
+function analyzePriceCurve(pricePoints: PricePoint[]): {
+  isMonotonic: boolean;
+  maxSlippage: number;
+} {
   if (pricePoints.length < 2) return { isMonotonic: true, maxSlippage: 0 };
 
   // Sort by sell amount
@@ -160,7 +161,7 @@ function checkInvertedSpread(
   if (buyPrice <= 0 || sellPrice <= 0) return { inverted: false, spread: 0 };
 
   const impliedReverse = 1 / buyPrice;
-  const spread = Math.abs(sellPrice - impliedReverse) / impliedReverse * 100;
+  const spread = (Math.abs(sellPrice - impliedReverse) / impliedReverse) * 100;
   const inverted = sellPrice < impliedReverse;
 
   return { inverted, spread };
@@ -239,14 +240,12 @@ export async function analyzeSep38Slippage(
       if (forwardPoints.length === 0 || reversePoints.length === 0) continue;
 
       // Analyze forward curve
-      const { isMonotonic: forwardMonotonic, maxSlippage: forwardSlippage } = analyzePriceCurve(
-        forwardPoints,
-      );
+      const { isMonotonic: forwardMonotonic, maxSlippage: forwardSlippage } =
+        analyzePriceCurve(forwardPoints);
 
       // Analyze reverse curve
-      const { isMonotonic: reverseMonotonic, maxSlippage: reverseSlippage } = analyzePriceCurve(
-        reversePoints,
-      );
+      const { isMonotonic: reverseMonotonic, maxSlippage: reverseSlippage } =
+        analyzePriceCurve(reversePoints);
 
       // Check for excessive slippage
       const maxSlippage = Math.max(forwardSlippage, reverseSlippage);
@@ -287,7 +286,7 @@ export async function analyzeSep38Slippage(
             INVERTED_BID_ASK_SPREAD_RULE,
             'error',
             'ANCHOR_QUOTE_SERVER',
-            `SEP-38 inverted bid-ask spread detected for ${sellAsset}/${buyAsset}: buy rate ${forwardPrice}, sell rate ${reversePrice} (implied reverse: ${(1/forwardPrice).toFixed(6)})`,
+            `SEP-38 inverted bid-ask spread detected for ${sellAsset}/${buyAsset}: buy rate ${forwardPrice}, sell rate ${reversePrice} (implied reverse: ${(1 / forwardPrice).toFixed(6)})`,
             'Bid price must be >= ask price. An inverted spread indicates an arbitrage bug.',
             opts,
           );
@@ -328,7 +327,8 @@ export const sep38SlippageRules = [
     id: NON_MONOTONIC_PRICE_CURVE_RULE,
     category: 'network',
     severity: 'warning' as const,
-    description: 'SEP-38 pricing curve must be monotonic (larger orders should not get better rates)',
+    description:
+      'SEP-38 pricing curve must be monotonic (larger orders should not get better rates)',
     run() {},
   },
 ];

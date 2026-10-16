@@ -45,7 +45,11 @@ describe('Asset clawback transaction lifecycle simulator', () => {
           account_id: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
           thresholds: { low_threshold: 0, med_threshold: 1, high_threshold: 2 },
           signers: [
-            { key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', weight: 2, type: 'ed25519_public_key' },
+            {
+              key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+              weight: 2,
+              type: 'ed25519_public_key',
+            },
           ],
         });
       }
@@ -107,7 +111,11 @@ describe('Asset clawback transaction lifecycle simulator', () => {
           account_id: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
           thresholds: { low_threshold: 0, med_threshold: 1, high_threshold: 2 },
           signers: [
-            { key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', weight: 1, type: 'ed25519_public_key' },
+            {
+              key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+              weight: 1,
+              type: 'ed25519_public_key',
+            },
           ],
         });
       }
@@ -171,7 +179,11 @@ describe('Asset clawback transaction lifecycle simulator', () => {
           account_id: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
           thresholds: { low_threshold: 0, med_threshold: 1, high_threshold: 2 },
           signers: [
-            { key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', weight: 2, type: 'ed25519_public_key' },
+            {
+              key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+              weight: 2,
+              type: 'ed25519_public_key',
+            },
           ],
         });
       }
@@ -206,7 +218,11 @@ describe('Asset clawback transaction lifecycle simulator', () => {
           account_id: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
           thresholds: { low_threshold: 0, med_threshold: 1, high_threshold: 2 },
           signers: [
-            { key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', weight: 2, type: 'ed25519_public_key' },
+            {
+              key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+              weight: 2,
+              type: 'ed25519_public_key',
+            },
           ],
         });
       }
@@ -234,7 +250,8 @@ describe('Asset clawback transaction lifecycle simulator', () => {
       ],
     };
 
-    const fetchImpl = (async () => jsonResponse({ error: 'Not found' }, 404)) as unknown as typeof fetch;
+    const fetchImpl = (async () =>
+      jsonResponse({ error: 'Not found' }, 404)) as unknown as typeof fetch;
 
     const diagnostics = await simulateClawback(doc, fetchImpl);
     expect(diagnostics).toEqual([]);
@@ -261,7 +278,11 @@ describe('Asset clawback transaction lifecycle simulator', () => {
           account_id: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
           thresholds: { low_threshold: 0, med_threshold: 1, high_threshold: 2 },
           signers: [
-            { key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', weight: 1, type: 'ed25519_public_key' },
+            {
+              key: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+              weight: 1,
+              type: 'ed25519_public_key',
+            },
           ],
         });
       }

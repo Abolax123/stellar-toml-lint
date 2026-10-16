@@ -17,6 +17,7 @@ import { telegramHandleRules } from './telegram-handle.js';
 import { trailingSlashRule } from './trailing-slash.js';
 import { uppercaseKeyRules } from './uppercase-keys.js';
 import { whitespaceRules } from './whitespace.js';
+import { httpVersionAuditorRules } from '../network/http-version-auditor.js';
 
 /**
  * The `WEB_AUTH_CONTRACT_ID` when it is a valid C... id, with its file path,
@@ -511,4 +512,7 @@ export const generalRules: Rule[] = [
   ...githubHandleRules,
   ...twitterHandleRules,
   ...telegramHandleRules,
+  // Network-bound rule ids live here so `--list-rules` and `--off` know them;
+  // the diagnostics come from `auditHttpVersions` under `--check-network`.
+  ...httpVersionAuditorRules,
 ];

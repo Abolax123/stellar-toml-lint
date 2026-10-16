@@ -3,7 +3,11 @@
  */
 
 import { useRef, useCallback, useState, useEffect } from 'react';
-import { WebRTCCollaborationProvider, type Collaborator, type WebRTCProviderOptions } from './webrtc-provider';
+import {
+  WebRTCCollaborationProvider,
+  type Collaborator,
+  type WebRTCProviderOptions,
+} from './webrtc-provider';
 import type { Diagnostic } from '../types';
 
 export interface UseCollaborationOptions extends WebRTCProviderOptions {
@@ -42,20 +46,29 @@ export function useCollaboration(options: UseCollaborationOptions = {}): UseColl
   const [currentRoomId, setCurrentRoomId] = useState<string>('');
   const [currentUsername, setCurrentUsername] = useState<string>('');
 
-  const handleCollaboratorsChange = useCallback((collabs: Collaborator[]) => {
-    setCollaborators(collabs);
-    onCollaboratorsChange?.(collabs);
-  }, [onCollaboratorsChange]);
+  const handleCollaboratorsChange = useCallback(
+    (collabs: Collaborator[]) => {
+      setCollaborators(collabs);
+      onCollaboratorsChange?.(collabs);
+    },
+    [onCollaboratorsChange],
+  );
 
-  const handleConnectionChange = useCallback((connected: boolean) => {
-    setIsConnected(connected);
-    onConnectionChange?.(connected);
-  }, [onConnectionChange]);
+  const handleConnectionChange = useCallback(
+    (connected: boolean) => {
+      setIsConnected(connected);
+      onConnectionChange?.(connected);
+    },
+    [onConnectionChange],
+  );
 
-  const handleSyncChange = useCallback((synced: boolean) => {
-    setIsSynced(synced);
-    onSyncChange?.(synced);
-  }, [onSyncChange]);
+  const handleSyncChange = useCallback(
+    (synced: boolean) => {
+      setIsSynced(synced);
+      onSyncChange?.(synced);
+    },
+    [onSyncChange],
+  );
 
   useEffect(() => {
     if (!enabled) return;
@@ -77,7 +90,15 @@ export function useCollaboration(options: UseCollaborationOptions = {}): UseColl
       provider.destroy();
       providerRef.current = null;
     };
-  }, [enabled, roomId, signalingServers, username, handleCollaboratorsChange, handleConnectionChange, handleSyncChange]);
+  }, [
+    enabled,
+    roomId,
+    signalingServers,
+    username,
+    handleCollaboratorsChange,
+    handleConnectionChange,
+    handleSyncChange,
+  ]);
 
   const connect = useCallback(() => {
     providerRef.current?.connect();

@@ -6,12 +6,36 @@
  * using pdfmake. Works completely offline in the browser.
  */
 
-import { createPdf, addVirtualFileSystem, type Content, type Style } from 'pdfmake';
+import { createPdf, type Content, type Style } from 'pdfmake';
+import * as pdfmake from 'pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 
 // Type definitions not exported by pdfmake, define locally
 interface TVirtualFileSystem {
   [filePath: string]: string;
+}
+
+/**
+ * The browser build of pdfmake exposes `addVirtualFileSystem`, while the Node
+ * build only exposes the underlying `virtualfs` store. Register the bundled
+ * Roboto fonts through whichever API this runtime provides.
+ */
+interface PdfMakeRuntime {
+  addVirtualFileSystem?: (vfs: TVirtualFileSystem) => void;
+  virtualfs?: { writeFileSync: (name: string, data: string, encoding?: string) => void };
+}
+
+function registerFontFiles(): void {
+  const runtime = pdfmake as unknown as PdfMakeRuntime;
+  if (typeof runtime.addVirtualFileSystem === 'function') {
+    runtime.addVirtualFileSystem(pdfFonts as TVirtualFileSystem);
+    return;
+  }
+  const vfs = runtime.virtualfs;
+  if (vfs === undefined || typeof vfs.writeFileSync !== 'function') return;
+  for (const [name, data] of Object.entries(pdfFonts as TVirtualFileSystem)) {
+    vfs.writeFileSync(name, data, 'base64');
+  }
 }
 
 interface TDocumentDefinitions {
@@ -25,7 +49,7 @@ interface TDocumentDefinitions {
   footer?: (currentPage: number, pageCount: number) => Content;
 }
 
-addVirtualFileSystem(pdfFonts as TVirtualFileSystem);
+registerFontFiles();
 
 export interface ComplianceReportData {
   document: Record<string, unknown>;
@@ -108,7 +132,10 @@ function formatDate(date: Date): string {
   return date.toISOString().replace('T', ' ').split('.')[0] + ' UTC';
 }
 
-function createExecutiveSummary(data: ComplianceReportData, options: Required<PDFExportOptions>): Content[] {
+function createExecutiveSummary(
+  data: ComplianceReportData,
+  options: Required<PDFExportOptions>,
+): Content[] {
   const score = computeComplianceScore(data.diagnostics);
   const errorCount = data.diagnostics.filter((d) => d.severity === 'error').length;
   const warningCount = data.diagnostics.filter((d) => d.severity === 'warning').length;
@@ -123,13 +150,47 @@ function createExecutiveSummary(data: ComplianceReportData, options: Required<PD
       table: {
         widths: ['30%', '70%'],
         body: [
-          [{ text: 'Report Title', style: 'tableHeader' }, { text: options.title, style: 'tableCell' }],
-          [{ text: 'Generated', style: 'tableHeader' }, { text: formatDate(new Date(data.metadata.timestamp)), style: 'tableCell' }],
-          [{ text: 'Linter Version', style: 'tableHeader' }, { text: data.metadata.linterVersion, style: 'tableCell' }],
-          [{ text: 'Domain', style: 'tableHeader' }, { text: data.metadata.domain ?? 'Local File', style: 'tableCell' }],
-          [{ text: 'Network', style: 'tableHeader' }, { text: data.metadata.networkPassphrase ?? 'Public Global Stellar Network', style: 'tableCell' }],
-          [{ text: 'Compliance Score', style: 'tableHeader' }, { text: `${score}% (${rating})`, style: { ...styles.tableCell, color: score >= 75 ? '#10B981' : score >= 50 ? '#F59E0B' : '#EF4444', bold: true } }],
-          [{ text: 'Total Findings', style: 'tableHeader' }, { text: `${data.diagnostics.length} (${errorCount} errors, ${warningCount} warnings, ${infoCount} info)`, style: 'tableCell' }],
+          [
+            { text: 'Report Title', style: 'tableHeader' },
+            { text: options.title, style: 'tableCell' },
+          ],
+          [
+            { text: 'Generated', style: 'tableHeader' },
+            { text: formatDate(new Date(data.metadata.timestamp)), style: 'tableCell' },
+          ],
+          [
+            { text: 'Linter Version', style: 'tableHeader' },
+            { text: data.metadata.linterVersion, style: 'tableCell' },
+          ],
+          [
+            { text: 'Domain', style: 'tableHeader' },
+            { text: data.metadata.domain ?? 'Local File', style: 'tableCell' },
+          ],
+          [
+            { text: 'Network', style: 'tableHeader' },
+            {
+              text: data.metadata.networkPassphrase ?? 'Public Global Stellar Network',
+              style: 'tableCell',
+            },
+          ],
+          [
+            { text: 'Compliance Score', style: 'tableHeader' },
+            {
+              text: `${score}% (${rating})`,
+              style: {
+                ...styles.tableCell,
+                color: score >= 75 ? '#10B981' : score >= 50 ? '#F59E0B' : '#EF4444',
+                bold: true,
+              },
+            },
+          ],
+          [
+            { text: 'Total Findings', style: 'tableHeader' },
+            {
+              text: `${data.diagnostics.length} (${errorCount} errors, ${warningCount} warnings, ${infoCount} info)`,
+              style: 'tableCell',
+            },
+          ],
         ],
       },
       layout: 'lightHorizontalLines',
@@ -159,7 +220,13 @@ function createAssetBreakdown(data: ComplianceReportData): Content[] {
   }
 
   const rows = [
-    [{ text: 'Code', style: 'tableHeader' }, { text: 'Issuer', style: 'tableHeader' }, { text: 'Type', style: 'tableHeader' }, { text: 'Anchor Asset', style: 'tableHeader' }, { text: 'Status', style: 'tableHeader' }],
+    [
+      { text: 'Code', style: 'tableHeader' },
+      { text: 'Issuer', style: 'tableHeader' },
+      { text: 'Type', style: 'tableHeader' },
+      { text: 'Anchor Asset', style: 'tableHeader' },
+      { text: 'Status', style: 'tableHeader' },
+    ],
   ];
 
   for (const curr of currencies) {
@@ -167,7 +234,13 @@ function createAssetBreakdown(data: ComplianceReportData): Content[] {
     const issuer = curr.issuer ?? '—';
     const type = curr.anchor_asset_type ?? 'stellar';
     const anchorAsset = curr.anchor_asset ?? '—';
-    const status = curr.is_unlimited ? 'Unlimited' : curr.fixed_number ? `Fixed: ${curr.fixed_number}` : curr.max_number ? `Max: ${curr.max_number}` : '—';
+    const status = curr.is_unlimited
+      ? 'Unlimited'
+      : curr.fixed_number
+        ? `Fixed: ${curr.fixed_number}`
+        : curr.max_number
+          ? `Max: ${curr.max_number}`
+          : '—';
 
     rows.push([
       { text: code, style: 'tableCell' },
@@ -211,7 +284,12 @@ function createValidatorDetails(data: ComplianceReportData): Content[] {
   }
 
   const rows = [
-    [{ text: 'Alias', style: 'tableHeader' }, { text: 'Public Key', style: 'tableHeader' }, { text: 'Host', style: 'tableHeader' }, { text: 'History', style: 'tableHeader' }],
+    [
+      { text: 'Alias', style: 'tableHeader' },
+      { text: 'Public Key', style: 'tableHeader' },
+      { text: 'Host', style: 'tableHeader' },
+      { text: 'History', style: 'tableHeader' },
+    ],
   ];
 
   for (const val of validators) {
@@ -249,16 +327,23 @@ function createDiagnostics(data: ComplianceReportData): Content[] {
   if (diagnostics.length === 0) {
     return [
       { text: 'Diagnostic Findings', style: 'sectionHeader', margin: [0, 0, 0, 10] },
-      { text: 'No issues found. The stellar.toml file passes all validation rules.', style: 'body', margin: [0, 0, 0, 20] },
+      {
+        text: 'No issues found. The stellar.toml file passes all validation rules.',
+        style: 'body',
+        margin: [0, 0, 0, 20],
+      },
     ];
   }
 
-  const grouped = diagnostics.reduce((acc, diag) => {
-    const cat = acc[diag.category] ?? [];
-    cat.push(diag);
-    acc[diag.category] = cat;
-    return acc;
-  }, {} as Record<string, typeof diagnostics>);
+  const grouped = diagnostics.reduce(
+    (acc, diag) => {
+      const cat = acc[diag.category] ?? [];
+      cat.push(diag);
+      acc[diag.category] = cat;
+      return acc;
+    },
+    {} as Record<string, typeof diagnostics>,
+  );
 
   const content: Content[] = [
     { text: 'Diagnostic Findings', style: 'sectionHeader', margin: [0, 0, 0, 10] },
@@ -268,7 +353,13 @@ function createDiagnostics(data: ComplianceReportData): Content[] {
     content.push({ text: category, style: 'subSectionHeader', margin: [0, 10, 0, 5] });
 
     const rows = [
-      [{ text: 'Rule', style: 'tableHeader' }, { text: 'Severity', style: 'tableHeader' }, { text: 'Message', style: 'tableHeader' }, { text: 'Location', style: 'tableHeader' }, { text: 'Suggestion', style: 'tableHeader' }],
+      [
+        { text: 'Rule', style: 'tableHeader' },
+        { text: 'Severity', style: 'tableHeader' },
+        { text: 'Message', style: 'tableHeader' },
+        { text: 'Location', style: 'tableHeader' },
+        { text: 'Suggestion', style: 'tableHeader' },
+      ],
     ];
 
     for (const diag of diags) {
@@ -280,7 +371,8 @@ function createDiagnostics(data: ComplianceReportData): Content[] {
         },
         { text: diag.message, style: 'tableCellSmall' },
         {
-          text: diag.path ?? (diag.position ? `L${diag.position.line}:C${diag.position.column}` : '—'),
+          text:
+            diag.path ?? (diag.position ? `L${diag.position.line}:C${diag.position.column}` : '—'),
           style: 'tableCellSmall',
         },
         { text: diag.suggestion ?? '—', style: 'tableCellSmall' },
@@ -312,10 +404,22 @@ function createChecksumPage(data: ComplianceReportData, checksum: string): Conte
       table: {
         widths: ['30%', '70%'],
         body: [
-          [{ text: 'Document SHA-256', style: 'tableHeader' }, { text: checksum, style: 'tableCellMonospace' }],
-          [{ text: 'Linter Version', style: 'tableHeader' }, { text: data.metadata.linterVersion, style: 'tableCell' }],
-          [{ text: 'Timestamp', style: 'tableHeader' }, { text: formatDate(new Date(data.metadata.timestamp)), style: 'tableCell' }],
-          [{ text: 'Canonical Document Length', style: 'tableHeader' }, { text: `${canonicalContent.length} bytes`, style: 'tableCell' }],
+          [
+            { text: 'Document SHA-256', style: 'tableHeader' },
+            { text: checksum, style: 'tableCellMonospace' },
+          ],
+          [
+            { text: 'Linter Version', style: 'tableHeader' },
+            { text: data.metadata.linterVersion, style: 'tableCell' },
+          ],
+          [
+            { text: 'Timestamp', style: 'tableHeader' },
+            { text: formatDate(new Date(data.metadata.timestamp)), style: 'tableCell' },
+          ],
+          [
+            { text: 'Canonical Document Length', style: 'tableHeader' },
+            { text: `${canonicalContent.length} bytes`, style: 'tableCell' },
+          ],
         ],
       },
       layout: 'lightHorizontalLines',
@@ -327,7 +431,12 @@ function createChecksumPage(data: ComplianceReportData, checksum: string): Conte
       style: 'body',
       margin: [0, 0, 0, 20],
     },
-    { text: 'End of Certificate', style: 'sectionHeader', margin: [0, 30, 0, 0], alignment: 'center' },
+    {
+      text: 'End of Certificate',
+      style: 'sectionHeader',
+      margin: [0, 30, 0, 0],
+      alignment: 'center',
+    },
   ];
 }
 
@@ -337,7 +446,13 @@ const styles: Record<string, Record<string, unknown>> = {
   sectionHeader: { fontSize: 16, bold: true, color: '#1F2937', margin: [0, 15, 0, 5] },
   subSectionHeader: { fontSize: 12, bold: true, color: '#374151', margin: [0, 10, 0, 5] },
   body: { fontSize: 10, color: '#374151', lineHeight: 1.4 },
-  tableHeader: { fontSize: 9, bold: true, color: '#FFFFFF', fillColor: '#1E3A8A', alignment: 'center' },
+  tableHeader: {
+    fontSize: 9,
+    bold: true,
+    color: '#FFFFFF',
+    fillColor: '#1E3A8A',
+    alignment: 'center',
+  },
   tableCell: { fontSize: 9, color: '#374151', alignment: 'left' },
   tableCellSmall: { fontSize: 8, color: '#374151', alignment: 'left' },
   tableCellSmallSeverity: { fontSize: 8, color: '#374151', alignment: 'left', bold: true },
@@ -347,7 +462,7 @@ const styles: Record<string, Record<string, unknown>> = {
 
 export async function generateCompliancePDF(
   data: ComplianceReportData,
-  options: PDFExportOptions = {}
+  options: PDFExportOptions = {},
 ): Promise<Blob> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
@@ -363,8 +478,16 @@ export async function generateCompliancePDF(
     defaultStyle: { font: 'Roboto' },
     content: [
       { text: opts.title, style: 'header' },
-      { text: `Generated by stellar-toml-lint v${data.metadata.linterVersion}`, style: 'subHeader' },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#E5E7EB' }], margin: [0, 0, 0, 20] },
+      {
+        text: `Generated by stellar-toml-lint v${data.metadata.linterVersion}`,
+        style: 'subHeader',
+      },
+      {
+        canvas: [
+          { type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#E5E7EB' },
+        ],
+        margin: [0, 0, 0, 20],
+      },
     ],
     footer: (currentPage: number, pageCount: number) => ({
       text: `Page ${currentPage} of ${pageCount} | stellar-toml-lint v${data.metadata.linterVersion} | ${formatDate(new Date())}`,
@@ -396,7 +519,10 @@ export async function generateCompliancePDF(
   return new Promise((resolve, reject) => {
     try {
       const pdfDoc = createPdf(docDefinition);
-      pdfDoc.getBlob().then((blob: Blob) => resolve(blob)).catch(reject);
+      pdfDoc
+        .getBlob()
+        .then((blob: Blob) => resolve(blob))
+        .catch(reject);
     } catch (error) {
       reject(error);
     }
@@ -406,7 +532,7 @@ export async function generateCompliancePDF(
 export async function downloadCompliancePDF(
   data: ComplianceReportData,
   filename?: string,
-  options: PDFExportOptions = {}
+  options: PDFExportOptions = {},
 ): Promise<void> {
   const blob = await generateCompliancePDF(data, options);
   const url = URL.createObjectURL(blob);

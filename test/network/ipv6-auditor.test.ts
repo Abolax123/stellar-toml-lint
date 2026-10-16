@@ -39,7 +39,9 @@ describe('IPv6 dual-stack connectivity auditor (#383)', () => {
 
   it('asserts network/missing-ipv6-aaaa-record (warning) when a host publishes no AAAA record', async () => {
     const resolve = vi.fn(async (hostname: string): Promise<Ipv6LookupResult> =>
-      hostname === 'api.example.com' ? { kind: 'none' } : { kind: 'ok', addresses: ['2001:db8::1'] },
+      hostname === 'api.example.com'
+        ? { kind: 'none' }
+        : { kind: 'ok', addresses: ['2001:db8::1'] },
     );
     const connect = vi.fn(async (): Promise<Ipv6ConnectionResult> => ({ kind: 'connected' }));
 

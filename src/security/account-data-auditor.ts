@@ -16,9 +16,21 @@ import { isString } from '../predicates.js';
 import { horizonUrlFor } from '../network-checks.js';
 
 // node:crypto is dynamically imported to avoid bundling in browser builds
-async function getCreateHash(): Promise<(algorithm: string) => { update: (data: string | Uint8Array, encoding?: string) => { digest: (encoding?: 'hex' | 'base64' | 'utf8') => string | Uint8Array } }> {
+async function getCreateHash(): Promise<
+  (algorithm: string) => {
+    update: (
+      data: string | Uint8Array,
+      encoding?: string,
+    ) => { digest: (encoding?: 'hex' | 'base64' | 'utf8') => string | Uint8Array };
+  }
+> {
   const { createHash } = await import('node:crypto');
-  return createHash as unknown as (algorithm: string) => { update: (data: string | Uint8Array, encoding?: string) => { digest: (encoding?: 'hex' | 'base64' | 'utf8') => string | Uint8Array } };
+  return createHash as unknown as (algorithm: string) => {
+    update: (
+      data: string | Uint8Array,
+      encoding?: string,
+    ) => { digest: (encoding?: 'hex' | 'base64' | 'utf8') => string | Uint8Array };
+  };
 }
 
 export const HASH_MISMATCH_RULE = 'security/on-chain-toml-hash-mismatch';
@@ -106,7 +118,12 @@ export async function auditAccountData(
   options: AccountDataAuditorOptions = {},
 ): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
-  const finding = (rule: string, fallback: 'error' | 'warning', detail: string, suggestion?: string): Diagnostic[] => {
+  const finding = (
+    rule: string,
+    fallback: 'error' | 'warning',
+    detail: string,
+    suggestion?: string,
+  ): Diagnostic[] => {
     const severity = severityFor(rule, fallback, options.rules);
     if (severity === undefined) return [];
     return [
@@ -233,14 +250,10 @@ export async function auditTomlAccountData(
 
   for (const acc of accountsToCheck) {
     diagnostics.push(
-      ...(await auditAccountData(
-        acc.id,
-        tomlContent,
-        horizonUrl,
-        domain,
-        fetchImpl,
-        { ...options, path: acc.path },
-      )),
+      ...(await auditAccountData(acc.id, tomlContent, horizonUrl, domain, fetchImpl, {
+        ...options,
+        path: acc.path,
+      })),
     );
   }
 
@@ -260,10 +273,13 @@ export const accountDataAuditorRules: Rule[] = [
     id: MISSING_PROOF_RULE,
     category: 'network',
     severity: 'warning',
-    description: 'Account is missing on-chain verification proofs (stellar_toml_hash or org_domain)',
+    description:
+      'Account is missing on-chain verification proofs (stellar_toml_hash or org_domain)',
     run() {},
   },
 ];
 
 /** Rule ids emitted by {@link auditTomlAccountData}. */
-export const accountDataAuditorRuleIds: readonly string[] = accountDataAuditorRules.map((rule) => rule.id);
+export const accountDataAuditorRuleIds: readonly string[] = accountDataAuditorRules.map(
+  (rule) => rule.id,
+);

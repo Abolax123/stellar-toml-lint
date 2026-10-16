@@ -60,7 +60,7 @@ export const certExpiryRules: Rule[] = [
 ];
 
 /** The HTTPS endpoints the file declares, deduplicated by host and port. */
-function endpointsOf(
+export function endpointsOf(
   doc: Record<string, unknown>,
 ): { host: string; port: number; field: string }[] {
   const endpoints: { host: string; port: number; field: string }[] = [];
@@ -111,7 +111,7 @@ function severityFor(
  * static import would drag a Node built-in into every browser build. A browser
  * (or any failed handshake) reports "not observed", never a guess.
  */
-const handshakeProbe: CertExpiryProbe = async (host, port) => {
+export const handshakeProbe: CertExpiryProbe = async (host, port) => {
   const tls = await import('node:tls').catch(() => null);
   if (tls === null) return null;
 

@@ -109,7 +109,12 @@ export {
   ipfsMetadataRuleIds,
   DEFAULT_IPFS_GATEWAYS,
 } from './validators/ipfsMetadata.js';
-export type { IpfsMetadataValidatorOptions, ParsedCid, CidVerificationResult, GatewayResult } from './validators/ipfsMetadata.js';
+export type {
+  IpfsMetadataValidatorOptions,
+  ParsedCid,
+  CidVerificationResult,
+  GatewayResult,
+} from './validators/ipfsMetadata.js';
 export { createFixtureFetch, fixtureCandidates, MissingFixtureError } from './mock-fixtures.js';
 export type { FixtureFile } from './mock-fixtures.js';
 export {
@@ -667,3 +672,79 @@ export type {
   DirectoryRegistry,
 } from './validators/anchorDiscovery.js';
 export type { AccountDataAuditorOptions } from './security/account-data-auditor.js';
+
+export {
+  PrometheusMetricsServer,
+  renderPrometheusText,
+  metricsFromLintResult,
+  collectMetrics,
+  collectTlsCertExpiries,
+  collectValidatorStatuses,
+  escapeLabelValue,
+  PROMETHEUS_CONTENT_TYPE,
+  DEFAULT_METRICS_PORT,
+  DEFAULT_METRICS_PROBE_TIMEOUT_MS,
+} from './telemetry/prometheus-server.js';
+export type {
+  MetricsSnapshot,
+  PrometheusMetricsServerOptions,
+  RuleViolationMetric,
+  TlsCertificateMetric,
+  ValidatorStatusMetric,
+} from './telemetry/prometheus-server.js';
+
+export {
+  auditHttpVersions,
+  httpVersionTargetsOf,
+  httpVersionAuditorRules,
+  httpVersionAuditorRuleIds,
+  defaultAlpnProbe,
+  defaultMultiplexProbe,
+  LEGACY_HTTP1_ONLY_RULE,
+  ALPN_NEGOTIATION_FAILED_RULE,
+  TCP_ALPN_PROTOCOLS,
+  HTTP3_ALPN_PROTOCOL,
+} from './network/http-version-auditor.js';
+export type {
+  AlpnProbe,
+  AlpnProbeResult,
+  HttpVersionAuditOptions,
+  HttpVersionObservation,
+  HttpVersionTarget,
+  MultiplexingMeasurement,
+  MultiplexingProbe,
+} from './network/http-version-auditor.js';
+
+export {
+  SlaCalculator,
+  defaultIsSuccess,
+  slaCalculatorRules,
+  slaCalculatorRuleIds,
+  SLA_BELOW_THRESHOLD_RULE,
+  DEFAULT_SLA_THRESHOLD_PERCENT,
+  SLA_WINDOWS_DAYS,
+  SLA_THRESHOLD_WINDOW_DAYS,
+  DEFAULT_MAX_RECORDS,
+} from './monitor/sla-calculator.js';
+export type {
+  ProbeInput,
+  ProbeRecord,
+  SlaCalculatorOptions,
+  SlaSummary,
+} from './monitor/sla-calculator.js';
+
+export {
+  generateJsonLd,
+  organizationNodeOf,
+  financialProductNodeOf,
+  formatJsonLd,
+  formatJsonLdScript,
+  validateJsonLd,
+  SCHEMA_ORG_CONTEXT,
+  ORGANIZATION_NODE_ID,
+  KNOWN_SCHEMA_TYPES,
+} from './generators/jsonld.js';
+export type { JsonLdNode, JsonLdValidation } from './generators/jsonld.js';
+
+export { MonitorDaemon } from './monitor/daemon.js';
+export type { DiffResult, MonitorDaemonOptions, PollSample } from './monitor/daemon.js';

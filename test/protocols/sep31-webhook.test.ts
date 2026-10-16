@@ -174,7 +174,9 @@ describe('SEP-31 webhook verifier (#391)', () => {
       verifyWebhookSignature('{}', createHmac('sha256', secret).update('{}').digest('hex'), secret),
     ).resolves.toMatchObject({ valid: true });
 
-    expect(webhookPayloadProblem({ status: 'not-a-status' })).toContain('not a valid SEP-31 status');
+    expect(webhookPayloadProblem({ status: 'not-a-status' })).toContain(
+      'not a valid SEP-31 status',
+    );
     expect(webhookPayloadProblem({ type: 'customer_info_needed' })).toBeUndefined();
     expect(SEP31_WEBHOOK_EVENT_TYPES.has('transaction_cleared')).toBe(true);
   });

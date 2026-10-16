@@ -109,12 +109,14 @@ function generateTestJwt(): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
-  const payload = btoa(JSON.stringify({
-    iss: 'https://example.com/auth',
-    sub: 'GAHK7EEG2WWHVKDNT4CEQFZGKF2LGDSBRTC4TQBXXK2ZBDUFLYWWDZDT',
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 3600,
-  }))
+  const payload = btoa(
+    JSON.stringify({
+      iss: 'https://example.com/auth',
+      sub: 'GAHK7EEG2WWHVKDNT4CEQFZGKF2LGDSBRTC4TQBXXK2ZBDUFLYWWDZDT',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    }),
+  )
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
@@ -227,14 +229,22 @@ export async function verifySep12Deletion(
     const body = getResult.body as CustomerResponse | null;
     if (body && typeof body === 'object') {
       const status = body.status;
-      if (status !== undefined && status !== 'DELETED' && status !== 'INACTIVE' && status !== 'PURGED') {
+      if (
+        status !== undefined &&
+        status !== 'DELETED' &&
+        status !== 'INACTIVE' &&
+        status !== 'PURGED'
+      ) {
         const diag = makeDiagnostic(
           CUSTOMER_RECORD_RETENTION_FAILURE_RULE,
           'sep12',
           'error',
           overrides,
           `SEP-12 GET /customer/${customerId} after DELETE returned status "${status}" instead of DELETED/INACTIVE/PURGED`,
-          { suggestion: 'After DELETE /customer, the record should be purged or marked DELETED/INACTIVE' },
+          {
+            suggestion:
+              'After DELETE /customer, the record should be purged or marked DELETED/INACTIVE',
+          },
         );
         if (diag) diagnostics.push(diag);
       }
@@ -255,6 +265,7 @@ export const sep12DeletionRules = [
     id: CUSTOMER_RECORD_RETENTION_FAILURE_RULE,
     category: 'sep12' as RuleCategory,
     severity: 'error' as Severity,
-    description: 'After DELETE /customer, the customer record must be purged or marked DELETED/INACTIVE',
+    description:
+      'After DELETE /customer, the customer record must be purged or marked DELETED/INACTIVE',
   },
 ] as const;

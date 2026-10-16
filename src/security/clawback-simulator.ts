@@ -156,7 +156,10 @@ async function checkClassicClawbackAuthority(
   );
 
   if (!result || result.status !== 200) {
-    return { hasAuthority: false, message: `Could not fetch issuer account ${asset.issuer} from Horizon` };
+    return {
+      hasAuthority: false,
+      message: `Could not fetch issuer account ${asset.issuer} from Horizon`,
+    };
   }
 
   const account = result.body as HorizonAccountResponse | null;
@@ -176,7 +179,10 @@ async function checkClassicClawbackAuthority(
     };
   }
 
-  return { hasAuthority: true, message: `Issuer ${asset.issuer} has sufficient signer weight for clawback` };
+  return {
+    hasAuthority: true,
+    message: `Issuer ${asset.issuer} has sufficient signer weight for clawback`,
+  };
 }
 
 async function checkSorobanClawbackAuthority(
@@ -193,24 +199,35 @@ async function checkSorobanClawbackAuthority(
     fetchImpl,
     rpcUrl,
     'simulateTransaction',
-    [{
-      contract_id: asset.contract,
-      function_name: 'clawback',
-      args: [],
-    }],
+    [
+      {
+        contract_id: asset.contract,
+        function_name: 'clawback',
+        args: [],
+      },
+    ],
     timeoutMs,
   );
 
   if (!result || result.status !== 200) {
-    return { hasAuthority: false, message: `Soroban RPC simulation failed for contract ${asset.contract}` };
+    return {
+      hasAuthority: false,
+      message: `Soroban RPC simulation failed for contract ${asset.contract}`,
+    };
   }
 
   const body = result.body as SorobanRpcResponse | null;
   if (!body || body.error) {
-    return { hasAuthority: false, message: `Soroban clawback simulation error: ${body?.error ?? 'unknown'}` };
+    return {
+      hasAuthority: false,
+      message: `Soroban clawback simulation error: ${body?.error ?? 'unknown'}`,
+    };
   }
 
-  return { hasAuthority: true, message: `Soroban contract ${asset.contract} allows clawback simulation` };
+  return {
+    hasAuthority: true,
+    message: `Soroban contract ${asset.contract} allows clawback simulation`,
+  };
 }
 
 export async function simulateClawback(
@@ -222,7 +239,8 @@ export async function simulateClawback(
   const overrides = options.rules;
   const timeoutMs = options.timeoutMs ?? 15_000;
   const horizonUrl = (doc.HORIZON_URL as string) ?? 'https://horizon.stellar.org';
-  const rpcUrl = options.rpcUrl ?? (doc.SOROBAN_RPC_URL as string) ?? 'https://soroban.stellar.org/rpc';
+  const rpcUrl =
+    options.rpcUrl ?? (doc.SOROBAN_RPC_URL as string) ?? 'https://soroban.stellar.org/rpc';
 
   const currencies = (doc.CURRENCIES as AssetInfo[]) ?? [];
 
@@ -254,7 +272,8 @@ export async function simulateClawback(
         `${path} declares clawback_enabled=true but description lacks AML/sanctions/compliance explanation`,
         {
           path: `${path}.desc`,
-          suggestion: 'Add explanation of regulatory authority for clawback (AML, sanctions, compliance requirements)',
+          suggestion:
+            'Add explanation of regulatory authority for clawback (AML, sanctions, compliance requirements)',
         },
       );
       if (diag) diagnostics.push(diag);
@@ -317,6 +336,7 @@ export const clawbackSimulatorRules = [
     id: CLAWBACK_PERMISSION_MISMATCH_RULE,
     category: 'security' as RuleCategory,
     severity: 'error' as Severity,
-    description: 'Asset with clawback_enabled must have valid signer authority and compliance explanation',
+    description:
+      'Asset with clawback_enabled must have valid signer authority and compliance explanation',
   },
 ] as const;

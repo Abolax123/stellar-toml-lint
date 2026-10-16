@@ -17,10 +17,7 @@ export function CollaboratorList({ collaborators }: CollaboratorListProps) {
             className="flex items-center gap-2 px-2 py-1 rounded bg-gray-800"
             style={{ borderLeft: `3px solid ${collab.color}` }}
           >
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: collab.color }}
-            />
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: collab.color }} />
             <span className="text-sm text-white">{collab.name}</span>
             {collab.cursorPosition && (
               <span className="text-xs text-gray-500">

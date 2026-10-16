@@ -29,14 +29,19 @@ export interface WebRTCProviderOptions {
   onSyncChange?: (synced: boolean) => void;
 }
 
-const DEFAULT_SIGNALING_SERVERS = [
-  'wss://signaling.yjs.dev',
-  'wss://signaling.yjs.org',
-];
+const DEFAULT_SIGNALING_SERVERS = ['wss://signaling.yjs.dev', 'wss://signaling.yjs.org'];
 
 const COLLABORATOR_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFBE0B', '#FB5607',
-  '#8338EC', '#3A86FF', '#06D6A0', '#FF006E', '#FF9F1C',
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#FFBE0B',
+  '#FB5607',
+  '#8338EC',
+  '#3A86FF',
+  '#06D6A0',
+  '#FF006E',
+  '#FF9F1C',
 ];
 
 function generateRoomId(): string {
@@ -54,7 +59,9 @@ function generateUsername(): string {
   const nouns = ['star', 'comet', 'orbit', 'nova', 'pulsar', 'quasar', 'zenith', 'apex'];
   const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const num = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, '0');
   return `${adj}-${noun}-${num}`;
 }
 
@@ -71,7 +78,10 @@ export class WebRTCCollaborationProvider {
     user: string;
     color: string;
     cursor: { lineNumber: number; column: number } | null;
-    selection: { start: { lineNumber: number; column: number }; end: { lineNumber: number; column: number } } | null;
+    selection: {
+      start: { lineNumber: number; column: number };
+      end: { lineNumber: number; column: number };
+    } | null;
   }>;
   private awareness: Awareness;
   private monacoModel: monaco.editor.ITextModel | null = null;
@@ -153,37 +163,47 @@ export class WebRTCCollaborationProvider {
 
     for (const collab of collaborators) {
       if (collab.cursorPosition) {
-        const decoration = this.monacoEditor.deltaDecorations([], [{
-          range: new monaco.Range(
-            collab.cursorPosition.lineNumber,
-            collab.cursorPosition.column,
-            collab.cursorPosition.lineNumber,
-            collab.cursorPosition.column + 1
-          ),
-          options: {
-            className: 'remote-cursor',
-            beforeContentClassName: `remote-cursor-caret-${collab.clientId}`,
-            before: `<div class="remote-cursor-label" style="background: ${collab.color}">${collab.name}</div>`,
-            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-          },
-        }]);
+        const decoration = this.monacoEditor.deltaDecorations(
+          [],
+          [
+            {
+              range: new monaco.Range(
+                collab.cursorPosition.lineNumber,
+                collab.cursorPosition.column,
+                collab.cursorPosition.lineNumber,
+                collab.cursorPosition.column + 1,
+              ),
+              options: {
+                className: 'remote-cursor',
+                beforeContentClassName: `remote-cursor-caret-${collab.clientId}`,
+                before: `<div class="remote-cursor-label" style="background: ${collab.color}">${collab.name}</div>`,
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            },
+          ],
+        );
         this.cursorDecorations.push(...decoration);
       }
 
       if (collab.selectionStart && collab.selectionEnd) {
-        const decoration = this.monacoEditor.deltaDecorations([], [{
-          range: new monaco.Range(
-            collab.selectionStart.lineNumber,
-            collab.selectionStart.column,
-            collab.selectionEnd.lineNumber,
-            collab.selectionEnd.column
-          ),
-          options: {
-            className: 'remote-selection',
-            inlineClassName: `remote-selection-bg-${collab.clientId}`,
-            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-          },
-        }]);
+        const decoration = this.monacoEditor.deltaDecorations(
+          [],
+          [
+            {
+              range: new monaco.Range(
+                collab.selectionStart.lineNumber,
+                collab.selectionStart.column,
+                collab.selectionEnd.lineNumber,
+                collab.selectionEnd.column,
+              ),
+              options: {
+                className: 'remote-selection',
+                inlineClassName: `remote-selection-bg-${collab.clientId}`,
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            },
+          ],
+        );
         this.selectionDecorations.push(...decoration);
       }
     }
@@ -323,7 +343,9 @@ export class WebRTCCollaborationProvider {
     const yTextContent = this.yText.toString();
     const modelContent = this.monacoModel.getValue();
     if (yTextContent !== modelContent) {
-      const cursorPos = this.monacoModel.getPositionAt(this.monacoEditor.getPosition() ?? { lineNumber: 1, column: 1 });
+      const cursorPos = this.monacoModel.getPositionAt(
+        this.monacoEditor.getPosition() ?? { lineNumber: 1, column: 1 },
+      );
       this.monacoModel.setValue(yTextContent);
       this.monacoEditor.setPosition(cursorPos);
     }
@@ -337,9 +359,20 @@ export class WebRTCCollaborationProvider {
     });
   }
 
-  private updateLocalSelection(selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number } | null): void {
+  private updateLocalSelection(
+    selection: {
+      startLineNumber: number;
+      startColumn: number;
+      endLineNumber: number;
+      endColumn: number;
+    } | null,
+  ): void {
     const cursorState = this.awareness.getLocalState()?.cursor ?? { cursor: null, selection: null };
-    if (selection && (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn)) {
+    if (
+      selection &&
+      (selection.startLineNumber !== selection.endLineNumber ||
+        selection.startColumn !== selection.endColumn)
+    ) {
       cursorState.selection = {
         start: { lineNumber: selection.startLineNumber, column: selection.startColumn },
         end: { lineNumber: selection.endLineNumber, column: selection.endColumn },
@@ -423,6 +456,8 @@ export class WebRTCCollaborationProvider {
   }
 }
 
-export function createWebRTCCollaborationProvider(options?: WebRTCProviderOptions): WebRTCCollaborationProvider {
+export function createWebRTCCollaborationProvider(
+  options?: WebRTCProviderOptions,
+): WebRTCCollaborationProvider {
   return new WebRTCCollaborationProvider(options);
 }

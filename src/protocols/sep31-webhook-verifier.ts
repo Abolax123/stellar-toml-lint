@@ -77,7 +77,9 @@ function severityFor(
 ): Severity | undefined {
   const override = rules?.[rule];
   if (override === 'off') return undefined;
-  return override === 'error' || override === 'warning' || override === 'info' ? override : fallback;
+  return override === 'error' || override === 'warning' || override === 'info'
+    ? override
+    : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -147,7 +149,8 @@ export async function verifyWebhookSignature(
   const expectedBytes = Buffer.from(expected, 'utf8');
   const actualBytes = Buffer.from(value.toLowerCase(), 'utf8');
   const matches =
-    expectedBytes.length === actualBytes.length && crypto.timingSafeEqual(expectedBytes, actualBytes);
+    expectedBytes.length === actualBytes.length &&
+    crypto.timingSafeEqual(expectedBytes, actualBytes);
 
   return matches
     ? { present: true, valid: true }
@@ -406,16 +409,14 @@ export const sep31WebhookRules: Rule[] = [
     id: MISSING_WEBHOOK_SIGNATURE_RULE,
     category: 'network',
     severity: 'error',
-    description:
-      'SEP-31 status webhooks must carry a valid HMAC-SHA256 X-Stellar-Signature header',
+    description: 'SEP-31 status webhooks must carry a valid HMAC-SHA256 X-Stellar-Signature header',
     run() {},
   },
   {
     id: WEBHOOK_DELIVERY_TIMEOUT_RULE,
     category: 'network',
     severity: 'warning',
-    description:
-      'DIRECT_PAYMENT_SERVER should deliver status callbacks within the webhook timeout',
+    description: 'DIRECT_PAYMENT_SERVER should deliver status callbacks within the webhook timeout',
     run() {},
   },
   {
