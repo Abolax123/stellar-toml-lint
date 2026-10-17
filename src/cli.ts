@@ -36,6 +36,7 @@ import {
   formatReadinessJson,
   formatRunSummary,
   formatSarif,
+  formatSonar,
   formatSummary,
   formatText,
 } from './reporters.js';
@@ -158,6 +159,7 @@ type Format =
   | 'html'
   | 'checkstyle'
   | 'markdown'
+  | 'sonar'
   | 'pr-comment';
 
 interface Cli {
@@ -261,8 +263,8 @@ OPTIONS
   -f, --format <fmt>      text (default), summary (one line per file, for hooks
                           and monitoring), json, ndjson, sarif, github, junit,
                           html, checkstyle, markdown (for GitHub step
-                          summaries), or pr-comment (for the aggregate
-                          pull-request comment)
+                          summaries), sonar (SonarQube Generic Issue Data),
+                          or pr-comment (for the aggregate pull-request comment)
       --format-file       Rewrite files in place: SEP-1 field order, consistent
                           quoting, comments preserved. Distinct from --format
                           (a reporter).
@@ -1496,6 +1498,8 @@ function render(result: LintResult, name: string, cli: Cli, color: boolean): str
       return formatMarkdown(result, name);
     case 'pr-comment':
       return formatPrComment(result, { filename: name });
+    case 'sonar':
+      return formatSonar(result, name);
     case 'text':
       return formatText(result, {
         filename: name,
@@ -2205,6 +2209,7 @@ function isFormat(value: string): value is Format {
     value === 'html' ||
     value === 'checkstyle' ||
     value === 'markdown' ||
+    value === 'sonar' ||
     value === 'pr-comment'
   );
 }

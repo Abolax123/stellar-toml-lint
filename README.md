@@ -134,7 +134,7 @@ it was before.
 | Flag                    | Effect                                                                          |
 | ----------------------- | ------------------------------------------------------------------------------- |
 | `-d, --domain <d>`      | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks           |
-| `-f, --format <fmt>`    | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`                 |
+| `-f, --format <fmt>`    | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`, `sonar`        |
 | `--format-file`         | Rewrite files in place in canonical SEP-1 layout                                |
 | `--strict`              | Treat warnings as errors                                                        |
 | `--max-warnings <n>`    | Fail if warnings exceed `n`                                                     |
@@ -154,7 +154,7 @@ it was before.
 | Flag                      | Effect                                                                          |
 | ------------------------- | ------------------------------------------------------------------------------- |
 | `-d, --domain <d>`        | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks           |
-| `-f, --format <fmt>`      | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`                 |
+| `-f, --format <fmt>`      | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`, `sonar`        |
 | `--strict`                | Treat warnings as errors                                                        |
 | `--max-warnings <n>`      | Fail if warnings exceed `n`                                                     |
 | `--check-network`         | Verify accounts, `HORIZON_URL`, `AUTH_SERVER`, and `ANCHOR_QUOTE_SERVER` online |
@@ -178,7 +178,7 @@ Exit codes: **0** no errors, **1** problems found, **2** bad usage or I/O failur
 | Flag                        | Effect                                                                                                                  |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `-d, --domain <d>`          | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks                                                   |
-| `-f, --format <fmt>`        | `text` (default), `summary`, `json`, `ndjson`, `sarif`, `github`, `junit`, `html`, `checkstyle`, `markdown`             |
+| `-f, --format <fmt>`        | `text` (default), `summary`, `json`, `ndjson`, `sarif`, `github`, `junit`, `html`, `checkstyle`, `markdown`, `sonar`    |
 | `--strict`                  | Treat warnings as errors                                                                                                |
 | `--max-warnings <n>`        | Fail if warnings exceed `n`                                                                                             |
 | `--check-network`           | Verify accounts, `HORIZON_URL`, SEP-8 flags, `ANCHOR_QUOTE_SERVER`, and SEP-6 `/info` online                            |
@@ -229,7 +229,7 @@ Exit codes: **0** no errors, **1** problems found, **2** bad usage or I/O failur
 | Flag                        | Effect                                                                                                                  |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `-d, --domain <d>`          | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks                                                   |
-| `-f, --format <fmt>`        | `text` (default), `summary`, `json`, `ndjson`, `sarif`, `github`, `junit`, `html`, `checkstyle`, `markdown`             |
+| `-f, --format <fmt>`        | `text` (default), `summary`, `json`, `ndjson`, `sarif`, `github`, `junit`, `html`, `checkstyle`, `markdown`, `sonar`    |
 | `--strict`                  | Treat warnings as errors                                                                                                |
 | `--max-warnings <n>`        | Fail if warnings exceed `n`                                                                                             |
 | `--check-network`           | Verify accounts, CORS pre-flight responses, `HORIZON_URL`, SEP-8 flags, `ANCHOR_QUOTE_SERVER`, and SEP-6 `/info` online |
@@ -273,7 +273,7 @@ failure.
 | Flag                               | Effect                                                                                                                                                                                                          |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-d, --domain <d>`                 | Serving domain. Enables CORS, content-type, TLS, image-asset, and `ORG_URL` checks                                                                                                                              |
-| `-f, --format <fmt>`               | `text` (default), `summary`, `json`, `ndjson`, `sarif`, `github`, `junit`, `html`, `checkstyle`, `markdown`                                                                                                     |
+| `-f, --format <fmt>`               | `text` (default), `summary`, `json`, `ndjson`, `sarif`, `github`, `junit`, `html`, `checkstyle`, `markdown`, `sonar`                                                                                            |
 | `--strict`                         | Treat warnings as errors                                                                                                                                                                                        |
 | `--max-warnings <n>`               | Fail if warnings exceed `n`                                                                                                                                                                                     |
 | `--fail-on <severity>`             | Exit `1` when any diagnostic meets or exceeds `error`, `warning`, or `info`; takes precedence over `--strict`                                                                                                   |
@@ -881,6 +881,36 @@ worker.onmessage = (e) => console.log('Lint result:', e.data.result);
 worker.postMessage({ type: 'lint', content: tomlString });
 ```
 
+### Web Worker thread pool
+
+A single worker lints one file at a time. For a playground that imports a ZIP of
+multi-tenant anchor files, or a monorepo holding many TOML configurations,
+`WorkerPool` spins up `N` dedicated workers (`navigator.hardwareConcurrency`
+by default) and batch-processes files off the main thread, so the UI never
+stutters while a large batch is linted:
+
+```ts
+import { WorkerPool } from 'stellar-toml-lint/browser';
+
+const pool = new WorkerPool();
+const entries = await pool.lintFiles(
+  [
+    { path: 'accounts/acme/stellar.toml', content: acmeToml },
+    { path: 'accounts/globex/stellar.toml', content: globexToml },
+  ],
+  {
+    onProgress: (progress) => console.log(`${progress.percent}%`),
+  },
+);
+// entries[i] matches files[i]: { path, result, error }
+pool.terminate();
+```
+
+Tasks are handed out round-robin, a worker that crashes is replaced so it
+cannot stall the batch, and every failure is reported per-file instead of
+failing the whole run. When Workers are unavailable the pool falls back to
+processing the queue on the current thread with the same API.
+
 ### Capabilities & Typings
 
 One capability does not survive the move: a page cannot observe a TLS session, so the `security/*` audit is skipped in the browser and reported as not observed rather than guessed. `browserCapabilities` says the same thing at runtime, for callers that branch on it.
@@ -939,6 +969,34 @@ To build the browser bundles:
 
 ```bash
 npm run build:browser
+```
+
+### On the edge (Cloudflare Workers, Vercel Edge, Fastly)
+
+The edge entry point (`@anchor-tools/stellar-toml-lint/edge`, `dist/edge.js`)
+lints a `stellar.toml` string with zero Node.js built-ins — no `node:fs`,
+`node:crypto`, or `node:http`. Transport is the runtime's `fetch` and hashing
+is the Web Cryptography API (`crypto.subtle`), so it loads in Cloudflare
+Workers, Vercel Edge, Fastly Compute@Edge, Deno, and any other
+WinterCG-compatible runtime:
+
+```ts
+import { lintEdge } from 'stellar-toml-lint/edge';
+
+const result = await lintEdge(tomlContent, {
+  domain: 'example.com',
+  strict: true,
+  expectedContentDigest: 'sha256-hex-...',
+});
+```
+
+`expectedContentDigest` is an optional integrity gate: when set, the run fails
+with an `edge/content-digest-mismatch` error unless the SHA-256 of the
+content matches — computed with `crypto.subtle`, so nothing in this entry
+point touches `node:crypto`. Build the bundle with:
+
+```bash
+npm run build:edge
 ```
 
 ## Formatting
@@ -1114,6 +1172,53 @@ Configure the run with pipeline variables, all optional:
 Both templates are validated by a YAML parser in `test/templates.test.ts`, exercised by the
 `test-templates.yml` workflow, so a broken copy-paste template fails CI before it can be merged.
 
+### Tekton Pipelines (OpenShift)
+
+Enterprise banks on Red Hat OpenShift can run the linter as a Tekton Catalog
+Task ([`integrations/tekton/task.yaml`](./integrations/tekton/task.yaml)). The
+task lints a `stellar.toml` from a Tekton workspace and emits two results:
+
+| Parameter   | Default        | Effect                                                |
+| ----------- | -------------- | ----------------------------------------------------- |
+| `TOML_PATH` | `stellar.toml` | File to lint, relative to the workspace root.         |
+| `FORMAT`    | `text`         | Output reporter format (text, json, sarif, sonar, …). |
+| `STRICT`    | `false`        | Treat warnings as errors (`true` or `false`).         |
+
+| Result           | Meaning                                      |
+| ---------------- | -------------------------------------------- |
+| `PROBLEMS_COUNT` | Total problems found (errors + warnings).    |
+| `VERDICT`        | `PASS` or `FAIL` per the exit-code contract. |
+
+The step image is `ghcr.io/anchor-tools/stellar-toml-lint:latest`, and the
+step's exit code is the linter's, so a failing file fails the task:
+
+```yaml
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: stellar-toml-lint
+spec:
+  params:
+    - name: TOML_PATH
+      value: public/.well-known/stellar.toml
+    - name: FORMAT
+      value: text
+    - name: STRICT
+      value: 'true'
+  workspaces:
+    - name: source
+  results:
+    - name: PROBLEMS_COUNT
+    - name: VERDICT
+  steps:
+    - name: lint
+      image: ghcr.io/anchor-tools/stellar-toml-lint:latest
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        stellar-toml-lint --format "$(params.FORMAT)" $( [ "$(params.STRICT)" = "true" ] && echo --strict ) "$(workspaces.source.path)/$(params.TOML_PATH)"
+```
+
 ### JUnit XML reports
 
 Jenkins, Bamboo, CircleCI, and Azure DevOps read JUnit XML to draw test pass/fail charts and suite
@@ -1161,6 +1266,47 @@ Each linted file becomes one `<file>` element and each diagnostic an `<error>` c
 `column`, `severity`, `message`, and `source` — the rule id, so a dashboard can group, baseline, or
 suppress findings the way it would a Checkstyle check. Severity maps straight across (`error`,
 `warning`, `info`). Lint one file per report, as with the other machine-readable formats.
+
+### SonarQube Generic Issue Data
+
+Enterprise code quality gates (SonarQube / SonarCloud) ingest findings through the
+[Generic Issue Data format](https://docs.sonarsource.com/sonarqube/cloud/external-issues/generic-issue-format/).
+`--format sonar` emits SEP-1 diagnostics as that JSON, one issue per diagnostic:
+
+```console
+$ stellar-toml-lint public/.well-known/stellar.toml --format sonar > sonar-results.json
+```
+
+```json
+{
+  "issues": [
+    {
+      "engineId": "stellar-toml-lint",
+      "ruleId": "currencies/issuer-or-contract",
+      "type": "CODE_SMELL",
+      "severity": "MAJOR",
+      "primaryLocation": {
+        "filePath": "public/.well-known/stellar.toml",
+        "message": "CURRENCIES[0].issuer is not a valid Stellar account ID",
+        "textRange": { "startLine": 31, "startColumn": 1, "endLine": 31, "endColumn": 1 }
+      }
+    }
+  ]
+}
+```
+
+Security rules map to `VULNERABILITY`, file and schema errors map to `BUG`, and
+everything else maps to `CODE_SMELL`. Severities map `error` → `BLOCKER`,
+`warning` → `MAJOR`, and `info` → `MINOR`. Programmatically, `formatSonar`
+from `stellar-toml-lint` produces the same document:
+
+```ts
+import { lint, formatSonar } from 'stellar-toml-lint';
+import { writeFile } from 'node:fs/promises';
+
+const result = lint(await readFile('stellar.toml', 'utf8'));
+await writeFile('sonar-results.json', formatSonar(result, 'stellar.toml'));
+```
 
 ### One-line status summaries
 

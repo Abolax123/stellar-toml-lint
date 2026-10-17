@@ -75,6 +75,7 @@ export {
   formatCheckstyle,
   formatMarkdown,
   formatPrComment,
+  formatSonar,
 } from './reporters.js';
 export type { TextReporterOptions, ReadinessReporterOptions } from './reporters.js';
 export { calculateReadiness, gradeFor } from './readiness.js';

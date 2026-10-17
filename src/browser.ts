@@ -24,6 +24,14 @@ import { UNKNOWN_TLS_SESSION } from './tls.js';
 import type { LintOptions, LintResult } from './types.js';
 import { generateCompliancePDF, downloadCompliancePDF } from './browser/pdf-exporter.js';
 import type { ComplianceReportData, PDFExportOptions } from './browser/pdf-exporter.js';
+export {
+  WorkerPool,
+  lintBrowserPool,
+  type PoolOptions,
+  type PoolTask,
+  type PoolEntry,
+  type Progress,
+} from './browser/worker-pool.js';
 
 /** What this entry point can and cannot do, for callers that branch on it. */
 export const browserCapabilities = {
