@@ -148,8 +148,10 @@ describe('installHook', () => {
     const result = await installHook('pre-commit', { cwd: repo });
 
     expect(result.path).toBe(join(repo, '.git', 'hooks', 'pre-commit'));
-    const mode = (await stat(result.path)).mode;
-    expect(mode & 0o111).not.toBe(0);
+    if (process.platform !== 'win32') {
+      const mode = (await stat(result.path)).mode;
+      expect(mode & 0o111).not.toBe(0);
+    }
 
     const body = await readFile(result.path, 'utf8');
     expect(body).toContain(HOOK_MARKER);
