@@ -2197,6 +2197,33 @@ Official Neovim LSP integration providing real-time SEP-1 linting diagnostics, c
 
 See [integrations/neovim/](integrations/neovim/) for details.
 
+### Kubernetes operator
+
+Cloud-native anchors can declare a `stellar.toml` as a native Kubernetes
+resource (`StellarInfoFile`) and have the operator in
+[`integrations/k8s/`](./integrations/k8s/) reconcile it into a ConfigMap and
+Ingress, recording SEP-1 validation verdicts as `Valid`/`SyncError` status
+conditions.
+
+```bash
+kubectl apply -f integrations/k8s/crds/stellarinfofile.yaml
+kubectl apply -f integrations/k8s/samples/stellarinfofile.yaml
+kubectl get sif -w
+```
+
+The controller lints `spec.toml` offline on every change, mounts only
+validated content into the managed ConfigMap, and leaves the last good
+publish in place when a spec stops validating — a typo never takes down a
+running anchor's well-known file.
+
+```bash
+cd integrations/k8s
+npm install && npm run build && npm test
+node dist/main.js   # watches StellarInfoFiles and reconciles them
+```
+
+See [integrations/k8s/README.md](./integrations/k8s/README.md) for details.
+
 ### Performance Benchmarks
 
 Automated performance benchmark and stress-testing harness.
