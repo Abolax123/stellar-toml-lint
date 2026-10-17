@@ -22,6 +22,9 @@ export type CompletionShell = 'bash' | 'zsh' | 'fish';
 /** Every shell the CLI can generate completions for, in help order. */
 export const COMPLETION_SHELLS: readonly CompletionShell[] = ['bash', 'zsh', 'fish'];
 
+/** `--install-hook` / `--uninstall-hook` choices. */
+const HOOK_NAMES = ['pre-commit', 'pre-push'] as const;
+
 /** True when `value` names a shell `--completion` supports. */
 export function isCompletionShell(value: string): value is CompletionShell {
   return (COMPLETION_SHELLS as readonly string[]).includes(value);

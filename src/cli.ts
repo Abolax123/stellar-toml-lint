@@ -125,6 +125,13 @@ import { createFixtureFetch } from './mock-fixtures.js';
 import { runLspServer } from './lsp/server.js';
 import { getTomlJsonSchema } from './schema.js';
 import { generateCompletion, isCompletionShell } from './completion.js';
+import {
+  BACKUP_SUFFIX,
+  installHook,
+  isHookName,
+  uninstallHook,
+  type HookName,
+} from './cli/git-hooks.js';
 import { MonitorDaemon } from './monitor/daemon.js';
 import { SlaCalculator } from './monitor/sla-calculator.js';
 import {
@@ -225,6 +232,8 @@ interface Cli {
   policy?: string;
   mockFixtures?: string;
   lsp?: boolean;
+  installHook?: HookName;
+  uninstallHook?: HookName;
   monitor?: boolean;
   interval?: number;
   webhookUrl?: string;
@@ -477,6 +486,10 @@ async function main(argv: string[]): Promise<number> {
   } catch (error) {
     process.stderr.write(`${message(error)}\n\nRun with --help for usage.\n`);
     return 2;
+  }
+
+  if (cli.installHook !== undefined || cli.uninstallHook !== undefined) {
+    return runHookCommand(cli);
   }
 
   if (cli.formatFile) return formatFiles(cli);
@@ -2191,6 +2204,14 @@ async function serveMock(path: string, port: number): Promise<number> {
     process.once('SIGINT', shutdown);
     process.once('SIGTERM', shutdown);
   });
+}
+
+function requireHookName(argv: string[], index: number, flag: string): HookName {
+  const value = requireValue(argv, index, flag);
+  if (!isHookName(value)) {
+    throw new Error(`Unknown hook "${value}". Expected pre-commit or pre-push.`);
+  }
+  return value;
 }
 
 function requireValue(argv: string[], index: number, flag: string): string {
