@@ -126,6 +126,13 @@ import { createFixtureFetch } from './mock-fixtures.js';
 import { runLspServer } from './lsp/server.js';
 import { getTomlJsonSchema } from './schema.js';
 import { generateCompletion, isCompletionShell } from './completion.js';
+import {
+  BACKUP_SUFFIX,
+  installHook,
+  isHookName,
+  uninstallHook,
+  type HookName,
+} from './cli/git-hooks.js';
 import { MonitorDaemon } from './monitor/daemon.js';
 import { SlaCalculator } from './monitor/sla-calculator.js';
 import {
@@ -236,6 +243,8 @@ interface Cli {
   policy?: string;
   mockFixtures?: string;
   lsp?: boolean;
+  installHook?: HookName;
+  uninstallHook?: HookName;
   monitor?: boolean;
   interval?: number;
   webhookUrl?: string;
@@ -504,6 +513,10 @@ async function main(argv: string[]): Promise<number> {
   } catch (error) {
     process.stderr.write(`${message(error)}\n\nRun with --help for usage.\n`);
     return 2;
+  }
+
+  if (cli.installHook !== undefined || cli.uninstallHook !== undefined) {
+    return runHookCommand(cli);
   }
 
   if (cli.formatFile) return formatFiles(cli);
@@ -1696,6 +1709,14 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.lsp = true;
         break;
 
+      case '--install-hook':
+        cli.installHook = requireHookName(argv, ++i, arg);
+        break;
+
+      case '--uninstall-hook':
+        cli.uninstallHook = requireHookName(argv, ++i, arg);
+        break;
+
       case '-d':
       case '--domain':
         cli.domain = requireValue(argv, ++i, arg);
@@ -2268,6 +2289,14 @@ async function serveMock(path: string, port: number): Promise<number> {
   });
 }
 
+function requireHookName(argv: string[], index: number, flag: string): HookName {
+  const value = requireValue(argv, index, flag);
+  if (!isHookName(value)) {
+    throw new Error(`Unknown hook "${value}". Expected pre-commit or pre-push.`);
+  }
+  return value;
+}
+
 function requireValue(argv: string[], index: number, flag: string): string {
   const value = argv[index];
   if (value === undefined || value.startsWith('-')) {
@@ -2362,6 +2391,47 @@ main(process.argv.slice(2))
     process.stderr.write(`Unexpected failure: ${message(error)}\n`);
     process.exitCode = 2;
   });
+
+/**
+ * Handles `--install-hook` and `--uninstall-hook`.
+ *
+ * The generated hook is intentionally not run here: it is verified by the
+ * test suite against a throwaway repository, not by the installer pretending
+ * the hook it just wrote works.
+ */
+async function runHookCommand(cli: Cli): Promise<number> {
+  if (cli.uninstallHook !== undefined) {
+    const result = await uninstallHook(cli.uninstallHook);
+    if (!result.present) {
+      process.stdout.write(`No ${cli.uninstallHook} hook installed at ${result.path}\n`);
+      return 0;
+    }
+    if (!result.removed) {
+      process.stderr.write(
+        `${result.path} is not a stellar-toml-lint hook; leaving it untouched. Remove it by hand if that is what you want.\n`,
+      );
+      return 1;
+    }
+    process.stdout.write(`Removed the ${cli.uninstallHook} hook from ${result.path}\n`);
+    if (result.restored !== undefined) {
+      process.stdout.write(`Restored the previous hook from ${result.path}${BACKUP_SUFFIX}\n`);
+    }
+    return 0;
+  }
+
+  const name = cli.installHook;
+  if (name === undefined) return 0;
+
+  const result = await installHook(name);
+  process.stdout.write(`Installed the ${name} hook at ${result.path}\n`);
+  if (result.backedUp !== undefined) {
+    process.stdout.write(`Preserved the existing hook at ${result.backedUp}\n`);
+  }
+  process.stdout.write(
+    'The hook runs $STELLAR_TOML_LINT; set it to pin the exact version your CI uses.\n',
+  );
+  return 0;
+}
 
 async function watchFiles(
   paths: string[],

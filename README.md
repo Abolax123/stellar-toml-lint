@@ -210,6 +210,8 @@ Exit codes: **0** no errors, **1** problems found, **2** bad usage or I/O failur
 | `--show-help-urls`          | Print the spec link for each finding                                                                                    |
 | `--list-rules`              | Print every rule and exit                                                                                               |
 | `--completion <shell>`      | Print a `bash`, `zsh`, or `fish` completion script and exit                                                             |
+| `--install-hook <hook>`     | Write a native Git hook (`pre-commit` or `pre-push`) that lints `stellar.toml`                                          |
+| `--uninstall-hook <hook>`   | Remove a hook this tool installed and restore any hook it replaced                                                      |
 | `--no-suggestions`          | Hide diagnostic suggestions in the output                                                                               |
 | `--color`                   | Force colour on, overriding `NO_COLOR`                                                                                  |
 | `--no-color`                | Force colour off                                                                                                        |
@@ -1493,6 +1495,41 @@ repos:
         language: docker_image
         files: '(?:.*/)?\.?stellar\.toml$'
 ```
+
+### Native Git hooks
+
+Without the `pre-commit` framework, the linter installs git hooks itself — no extra dependency, and
+no YAML to copy between repositories:
+
+```bash
+stellar-toml-lint --install-hook pre-commit   # lint the staged stellar.toml before each commit
+stellar-toml-lint --install-hook pre-push     # lint the whole pushed range before it leaves your machine
+stellar-toml-lint --uninstall-hook pre-push   # remove it, restoring any hook it replaced
+```
+
+The two hooks answer different questions. `pre-commit` lints the **staged blob** — what the commit
+will actually contain, not the working tree — so a half-finished edit is never what gets checked.
+`pre-push` reads the refs git hands it on stdin, resolves the commit range being pushed (including a
+brand-new branch, where it uses only the commits no remote has yet), and lints every `stellar.toml`
+in that range from its committed content. A push that touches no `stellar.toml` — the common case
+while drafting — runs nothing at all:
+
+```console
+$ git push
+stellar-toml-lint: checking public/.well-known/stellar.toml
+  12:1      error    NETWORK_PASSPHRASE has stray whitespace  network/passphrase
+...
+stellar-toml-lint: push aborted — fix the findings above, or push with --no-verify.
+```
+
+Both hooks exit `1` to abort the operation when SEP-1 errors are found, and `--no-verify` remains
+the documented escape hatch. The hooks run `npx --yes stellar-toml-lint` by default; set
+`STELLAR_TOML_LINT` to pin the exact command (and version) your CI uses, e.g.
+`STELLAR_TOML_LINT="./node_modules/.bin/stellar-toml-lint"`.
+
+Installing never destroys work. A hook this tool did not write is moved to
+`<hook>.stellar-toml-lint.bak` before being replaced, reinstalling refreshes our hook in place, and
+`--uninstall-hook` puts the original back.
 
 ### Offline and air-gapped CI
 

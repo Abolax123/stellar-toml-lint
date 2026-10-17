@@ -17,8 +17,9 @@ export default tseslint.config(
     },
   },
   {
-    // Tests assert on parsed JSON, which is legitimately `any`.
-    files: ['test/**/*.ts'],
+    // Tests assert on parsed JSON and drive stubbed browser APIs, which are
+    // legitimately `any`. Applies to the companion apps' tests too.
+    files: ['test/**/*.ts', 'apps/**/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',

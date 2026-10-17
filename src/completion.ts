@@ -22,6 +22,9 @@ export type CompletionShell = 'bash' | 'zsh' | 'fish';
 /** Every shell the CLI can generate completions for, in help order. */
 export const COMPLETION_SHELLS: readonly CompletionShell[] = ['bash', 'zsh', 'fish'];
 
+/** `--install-hook` / `--uninstall-hook` choices. */
+const HOOK_NAMES = ['pre-commit', 'pre-push'] as const;
+
 /** True when `value` names a shell `--completion` supports. */
 export function isCompletionShell(value: string): value is CompletionShell {
   return (COMPLETION_SHELLS as readonly string[]).includes(value);
@@ -156,6 +159,16 @@ const FLAGS: readonly FlagSpec[] = [
     long: '--completion',
     description: 'Print a shell completion script',
     values: COMPLETION_SHELLS,
+  },
+  {
+    long: '--install-hook',
+    description: 'Install a native Git hook that lints stellar.toml',
+    values: HOOK_NAMES,
+  },
+  {
+    long: '--uninstall-hook',
+    description: 'Remove a stellar-toml-lint Git hook',
+    values: HOOK_NAMES,
   },
   { long: '--version', short: '-v', description: 'Print the version' },
   { long: '--help', short: '-h', description: 'Print usage' },
