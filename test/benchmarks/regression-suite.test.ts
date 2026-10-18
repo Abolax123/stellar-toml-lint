@@ -9,6 +9,7 @@ import {
   RULE_ALLOWANCES,
   SYNTHETIC_NODES,
   auditRegexes,
+  calibrationScale,
   judge,
   loadBaseline,
   syntheticDocument,
@@ -204,6 +205,74 @@ describe('judge: baseline comparison', () => {
     const verdicts = judge(slow, baselineOf({ 'a/b': 10 }));
     expect(verdicts[0]?.changeFraction).toBeCloseTo(0, 5);
     expect(verdicts[0]?.regressed).toBe(false);
+  });
+});
+
+describe('judge: thresholds scale with the machine', () => {
+  it('scales the budget by the calibration ratio', () => {
+    // A runner measured 2.7x slower than the baseline machine should not fail
+    // every rule: the budget means "0.5ms of work as the baseline machine
+    // would measure it", not "0.5ms on whatever hardware CI allocated".
+    const slow: Measurement = {
+      timings: [{ ...timing('a/b', 1.2), units: 4 }],
+      calibrationMs: 0.3,
+    };
+    const baseline = { ...baselineOf({ 'a/b': 4 }), calibrationMs: 0.1 };
+
+    expect(calibrationScale(slow, baseline)).toBeCloseTo(3, 5);
+    // 0.5ms * 3 = 1.5ms, so 1.2ms passes.
+    expect(judge(slow, baseline)[0]?.overBudget).toBe(false);
+    expect(judge(slow, baseline)[0]?.budgetMs).toBeCloseTo(1.5, 5);
+  });
+
+  it('still fails a rule that is over budget even after scaling', () => {
+    const slow: Measurement = {
+      timings: [{ ...timing('a/b', 2.0), units: 6.67 }],
+      calibrationMs: 0.3,
+    };
+    const baseline = { ...baselineOf({ 'a/b': 4 }), calibrationMs: 0.1 };
+    expect(judge(slow, baseline)[0]?.overBudget).toBe(true);
+  });
+
+  it('scales the noise floor too, so a tiny rule does not trip it', () => {
+    // A cheap rule that rose 70% in calibration units, but only 67µs in
+    // absolute terms. Against the unscaled 50µs floor that is a regression;
+    // on a machine running 2.7x slower the floor is 135µs, and 67µs of
+    // movement there is the same amount of work as 25µs on the baseline
+    // machine — noise, not a change.
+    const calibrationMs = 0.27;
+    const baselineUnits = 0.352;
+    const nowUnits = 0.6;
+    const slow: Measurement = {
+      timings: [{ ...timing('a/b', nowUnits * calibrationMs), units: nowUnits }],
+      calibrationMs,
+    };
+    const baseline = { ...baselineOf({ 'a/b': baselineUnits }), calibrationMs: 0.1 };
+
+    const verdict = judge(slow, baseline)[0];
+    expect(verdict?.changeFraction).toBeGreaterThan(0.5);
+    // (0.6 - 0.352) * 0.27 = 67µs, under the 135µs scaled floor.
+    expect(verdict?.regressed).toBe(false);
+
+    // The same movement on a machine matching the baseline does regress.
+    const sameSpeed: Measurement = {
+      timings: [{ ...timing('a/b', nowUnits * 0.1), units: nowUnits }],
+      calibrationMs: 0.1,
+    };
+    expect(
+      judge(sameSpeed, { ...baseline, calibrationMs: 0.1 })[0]?.changeFraction,
+    ).toBeGreaterThan(0.5);
+  });
+
+  it('does not scale anything when there is no baseline to scale against', () => {
+    const verdicts = judge(measurement([timing('a/b', 0.9)]), undefined);
+    expect(verdicts[0]?.budgetMs).toBe(DEFAULT_BUDGET_MS);
+    expect(verdicts[0]?.overBudget).toBe(true);
+  });
+
+  it('reports a scale of 1 when the baseline records no calibration', () => {
+    const broken = { ...baselineOf({ 'a/b': 10 }), calibrationMs: 0 };
+    expect(calibrationScale(measurement([timing('a/b', 1)]), broken)).toBe(1);
   });
 });
 

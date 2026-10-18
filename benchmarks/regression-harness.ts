@@ -676,10 +676,23 @@ export function judge(
 ): Verdict[] {
   const { timings, calibrationMs } = measurement;
 
+  // How much slower this machine is than the one that recorded the baseline,
+  // measured by the calibration workload rather than assumed. A shared CI
+  // runner came in at 2.7x a developer laptop, which turns a 0.5ms budget into
+  // a gate on the runner's speed rather than on the rule's cost. Scaling the
+  // absolute thresholds by the same ratio the comparison already uses makes
+  // "0.5ms" mean "0.5ms of work as the baseline machine would measure it",
+  // which is the thing worth holding constant.
+  const scale =
+    baseline !== undefined && baseline.calibrationMs > 0 && calibrationMs > 0
+      ? calibrationMs / baseline.calibrationMs
+      : 1;
+  const noiseFloorMs = NOISE_FLOOR_MS * scale;
+
   return timings.map((timing) => {
     const recorded = baseline?.rules[timing.rule];
     const allowance = RULE_ALLOWANCES[timing.rule];
-    const allowed = allowance?.budgetMs ?? budgetMs;
+    const allowed = (allowance?.budgetMs ?? budgetMs) * scale;
     const allowedRise = Math.max(allowance?.tolerance ?? 0, tolerance);
     const overBudget = Number.isFinite(timing.meanMs) && timing.meanMs > allowed;
 
@@ -700,7 +713,7 @@ export function judge(
     const absoluteRise = (timing.units - recorded.units) * calibrationMs;
     // Widen the tolerance by however uncertain the two measurements were.
     const uncertainty = recorded.rmeFraction + timing.rmeFraction;
-    const regressed = changeFraction > allowedRise + uncertainty && absoluteRise > NOISE_FLOOR_MS;
+    const regressed = changeFraction > allowedRise + uncertainty && absoluteRise > noiseFloorMs;
 
     return {
       timing,
@@ -713,6 +726,19 @@ export function judge(
       isNew: false,
     };
   });
+}
+
+/**
+ * The calibration ratio between a run and the baseline it is compared against.
+ *
+ * Exposed so the report can say *why* the thresholds moved, rather than
+ * leaving a reader to wonder why a 0.5ms budget admitted a 1.2ms rule.
+ */
+export function calibrationScale(measurement: Measurement, baseline: Baseline | undefined): number {
+  if (baseline === undefined || baseline.calibrationMs <= 0 || measurement.calibrationMs <= 0) {
+    return 1;
+  }
+  return measurement.calibrationMs / baseline.calibrationMs;
 }
 
 /** Reads the committed baseline, or `undefined` when there is none yet. */

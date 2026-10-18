@@ -86,35 +86,62 @@ jobs:
       # On a pull request, re-record the baseline from the base commit so the
       # comparison is PR-vs-base on one runner. On a push or a schedule there
       # is nothing to compare against, so the committed baseline is used.
+      # Re-record the baseline from the base commit on *this* runner, so the
+      # comparison is PR-vs-base rather than PR-vs-whoever-last-committed-the
+      # -baseline. This is the only arrangement in which a 20% tolerance is
+      # meaningful; see the step below for what happens when it is unavailable.
       - name: Record baseline from the base commit
+        id: baseline
         if: github.event_name == 'pull_request'
         run: |
           git worktree add ../base "${{ github.event.pull_request.base.sha }}"
 
           # The base commit does not necessarily have this harness — the PR
           # that introduces it is the obvious case, and so is any PR opened
-          # from an older base. Fall back to the committed baseline rather
-          # than failing: that comparison is normalised against a calibration
-          # workload precisely so it survives being measured elsewhere.
+          # from an older base.
           if ! grep -q '"bench:regression"' ../base/package.json; then
-            echo "::notice::Base commit ${{ github.event.pull_request.base.sha }} has no bench:regression script; comparing against the committed baseline instead."
+            echo "::notice::Base commit ${{ github.event.pull_request.base.sha }} has no bench:regression script; falling back to the committed baseline."
+            echo "same_runner=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           cp -R node_modules ../base/node_modules
           ( cd ../base && npm run bench:regression -- --update )
           cp ../base/benchmarks/baselines/rule-latency.json benchmarks/baselines/rule-latency.json
+          echo "same_runner=true" >> "$GITHUB_OUTPUT"
+
+      # Whether a baseline regression fails the job or is merely reported.
+      #
+      # Measured: a shared runner runs this suite 2.7x slower than a developer
+      # laptop, and normalising against the calibration workload removes most
+      # but not all of that — a residual 12-22% remains, because a string-heavy
+      # calibration loop and a regex-heavy rule do not scale identically across
+      # microarchitectures. That residual consumes the entire 20% tolerance, so
+      # gating on a baseline recorded elsewhere would fail honest PRs.
+      #
+      # Same-runner comparison has no such residual and is enforced. The
+      # committed baseline is still checked and reported, just not gated on.
+      - name: Decide whether regressions gate
+        id: mode
+        run: |
+          if [ "${{ steps.baseline.outputs.same_runner }}" = "true" ]; then
+            echo "flag=" >> "$GITHUB_OUTPUT"
+            echo "Baseline measured on this runner; regressions will fail the job."
+          else
+            echo "flag=--no-fail-on-regression" >> "$GITHUB_OUTPUT"
+            echo "Comparing against the committed baseline; regressions are advisory."
+          fi
 
       - name: Per-rule latency budgets and regression check
         id: bench
-        run: npm run bench:regression -- --json > rule-latency.json
+        run: npm run bench:regression -- --json ${{ steps.mode.outputs.flag }} > rule-latency.json
         continue-on-error: true
 
       # The human-readable table, always, so a failure is readable without
       # downloading an artifact.
       - name: Report
         if: always()
-        run: npm run bench:regression || true
+        run: npm run bench:regression -- ${{ steps.mode.outputs.flag }} || true
 
       - name: Upload measurements
         if: always()
@@ -127,8 +154,8 @@ jobs:
       # Timing on a shared runner is noisy enough that one flagged rule is not
       # proof. A second run has to agree before the job fails: a genuine
       # regression reproduces, a scheduling hiccup usually does not.
-      - name: Confirm a flagged regression before failing
+      - name: Confirm a flagged failure before failing the job
         if: steps.bench.outcome == 'failure'
         run: |
-          echo "::warning::First run reported a regression; confirming before failing the job."
-          npm run bench:regression
+          echo "::warning::First run reported a failure; confirming before failing the job."
+          npm run bench:regression -- ${{ steps.mode.outputs.flag }}

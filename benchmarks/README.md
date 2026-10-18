@@ -51,7 +51,8 @@ Three checks:
    slow from its first commit, which a baseline comparison structurally cannot. Eight rules that
    walk every string in the document have a documented allowance in `RULE_ALLOWANCES`, each with
    its reason.
-2. **Baseline comparison** — a rise over 20% against `baselines/rule-latency.json` fails.
+2. **Baseline comparison** — a rise over 20% against `baselines/rule-latency.json`. Enforced only
+   when the baseline was measured on the same machine (see below); otherwise reported.
 3. **Regex audit** — every regex literal in `src/` is screened statically with the ReDoS detector
    from issue #380, and the ones that validate URLs and keys are then _timed_ against 20 KB of
    adversarial input.

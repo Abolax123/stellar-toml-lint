@@ -20,6 +20,7 @@ import {
   REPO_ROOT,
   SYNTHETIC_NODES,
   auditRegexes,
+  calibrationScale,
   judge,
   loadBaseline,
   measureRules,
@@ -39,6 +40,10 @@ committed baseline.
 Options:
   --update, --update-baseline  Rewrite the baseline from this run.
   --json                       Emit the report as JSON instead of a table.
+  --no-fail-on-regression      Report baseline regressions without failing.
+                               For comparing against a baseline recorded on a
+                               different machine, where the residual
+                               cross-architecture error exceeds the tolerance.
   --filter <text>              Only rules whose id contains <text>.
   --nodes <n>                  Synthetic repeated tables (default ${SYNTHETIC_NODES}).
   --budget <ms>                Per-rule latency budget (default ${DEFAULT_BUDGET_MS}).
@@ -49,6 +54,7 @@ Options:
 interface Options {
   update: boolean;
   json: boolean;
+  failOnRegression: boolean;
   filter: string | undefined;
   nodes: number;
   budgetMs: number;
@@ -69,6 +75,7 @@ function parseArgs(argv: readonly string[]): Options | 'help' {
   const options: Options = {
     update: false,
     json: false,
+    failOnRegression: true,
     filter: undefined,
     nodes: SYNTHETIC_NODES,
     budgetMs: DEFAULT_BUDGET_MS,
@@ -86,6 +93,9 @@ function parseArgs(argv: readonly string[]): Options | 'help' {
         break;
       case '--json':
         options.json = true;
+        break;
+      case '--no-fail-on-regression':
+        options.failOnRegression = false;
         break;
       case '--filter': {
         const value = argv[++i];
@@ -125,6 +135,7 @@ function reportText(
   verdicts: readonly Verdict[],
   regexProblems: readonly RegexProblem[],
   options: Options,
+  scale: number,
 ): void {
   const write = (line: string): void => {
     process.stdout.write(`${line}\n`);
@@ -176,7 +187,12 @@ function reportText(
 
   if (regressed.length > 0) {
     write('');
-    write(`FAIL: ${regressed.length} rule(s) slower than baseline:`);
+    write(
+      options.failOnRegression
+        ? `FAIL: ${regressed.length} rule(s) slower than baseline:`
+        : `NOTE: ${regressed.length} rule(s) slower than the committed baseline ` +
+            '(advisory — recorded on another machine):',
+    );
     for (const verdict of regressed) {
       write(
         `  ${verdict.timing.rule} — ${formatMs(verdict.baselineMs ?? Number.NaN)} → ` +
@@ -201,9 +217,15 @@ function reportText(
     `${measured.length} rules measured, ${formatMs(total)} total; ` +
       `budget ${options.budgetMs}ms/rule, tolerance ${(options.tolerance * 100).toFixed(0)}%`,
   );
+  if (Math.abs(scale - 1) > 0.05) {
+    write(
+      `This machine measures ${scale.toFixed(2)}x the baseline's calibration workload, ` +
+        `so budgets were scaled to ${(options.budgetMs * scale).toFixed(2)}ms/rule.`,
+    );
+  }
 
-  if (overBudget.length === 0 && regressed.length === 0 && regexProblems.length === 0) {
-    write('No regressions.');
+  if (overBudget.length === 0 && regexProblems.length === 0) {
+    write(regressed.length === 0 ? 'No regressions.' : 'No budget or regex failures.');
   }
 }
 
@@ -251,11 +273,14 @@ async function main(): Promise<number> {
       judge(measurement, undefined, options.budgetMs, options.tolerance),
       regexProblems,
       options,
+      1,
     );
     return 1;
   }
 
-  const verdicts = judge(measurement, loadBaseline(), options.budgetMs, options.tolerance);
+  const baseline = loadBaseline();
+  const scale = calibrationScale(measurement, baseline);
+  const verdicts = judge(measurement, baseline, options.budgetMs, options.tolerance);
 
   if (options.json) {
     process.stdout.write(
@@ -264,6 +289,8 @@ async function main(): Promise<number> {
           nodes: options.nodes,
           node: process.version,
           calibrationMs: measurement.calibrationMs,
+          calibrationScale: scale,
+          failOnRegression: options.failOnRegression,
           verdicts,
           regexProblems,
         },
@@ -272,11 +299,13 @@ async function main(): Promise<number> {
       )}\n`,
     );
   } else {
-    reportText(verdicts, regexProblems, options);
+    reportText(verdicts, regexProblems, options, scale);
   }
 
   const failed =
-    verdicts.some((verdict) => verdict.overBudget || verdict.regressed) || regexProblems.length > 0;
+    verdicts.some(
+      (verdict) => verdict.overBudget || (verdict.regressed && options.failOnRegression),
+    ) || regexProblems.length > 0;
   return failed ? 1 : 0;
 }
 
