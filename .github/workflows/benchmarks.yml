@@ -90,6 +90,17 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           git worktree add ../base "${{ github.event.pull_request.base.sha }}"
+
+          # The base commit does not necessarily have this harness — the PR
+          # that introduces it is the obvious case, and so is any PR opened
+          # from an older base. Fall back to the committed baseline rather
+          # than failing: that comparison is normalised against a calibration
+          # workload precisely so it survives being measured elsewhere.
+          if ! grep -q '"bench:regression"' ../base/package.json; then
+            echo "::notice::Base commit ${{ github.event.pull_request.base.sha }} has no bench:regression script; comparing against the committed baseline instead."
+            exit 0
+          fi
+
           cp -R node_modules ../base/node_modules
           ( cd ../base && npm run bench:regression -- --update )
           cp ../base/benchmarks/baselines/rule-latency.json benchmarks/baselines/rule-latency.json
