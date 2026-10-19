@@ -1048,6 +1048,38 @@
     "network/unverified-bgp-announcement": {
       "units": 0,
       "rmeFraction": 0.0131
+    },
+    "validators/dns-srv-record-missing": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "validators/dns-srv-target-unreachable": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "security/useless-signer-detected": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "security/unintended-veto-key": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/unprotected-connection-churn": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/peer-socket-exhaustion": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/high-topological-distance": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/disconnected-peer-component": {
+      "units": 0,
+      "rmeFraction": 0
     }
   }
 }

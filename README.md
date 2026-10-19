@@ -303,6 +303,9 @@ failure.
 | `--verify-buckets`                 | Download a sample of each archive's `currentBuckets`, verify the SHA-256 of the decompressed stream, and decode the XDR `BucketEntry` stream (requires `--check-network`)                                       |
 | `--verify-overlay`                 | Complete the overlay TCP handshake with each `[[VALIDATORS]]` HOST and check its network, node ID, and protocol version (requires `--check-network`)                                                            |
 | `--audit-quorum`                   | Solve declared `[[VALIDATORS]]` quorum sets for split-brain risk and BFT; emits `validators/fragile-quorum-set` (warning) and `validators/quorum-intersection-failure` (error) (requires `--check-network`)     |
+| `--audit-multisig`                 | Enumerate exact signer coalitions for low, medium, and high account thresholds (requires `--check-network`)                                                                                                  |
+| `--audit-dos`                      | Run ten sequential overlay connection attempts and verify graceful backoff (requires `--check-network`)                                                                                                       |
+| `--crawl-topology`                 | Crawl `GET_PEERS` and flag validator paths longer than three overlay hops (requires `--check-network`)                                                                                                          |
 | `--verify-dnssec`                  | Compare A/AAAA answers across Cloudflare, Google, and Quad9 DoH resolvers (requires `--check-network`)                                                                                                          |
 | `--follow-links`                   | Fetch and lint the `toml` pointers in `CURRENCIES` (implied by `--domain`)                                                                                                                                      |
 | `--check-contracts`                | Verify Soroban contracts exist on chain, their WASM is not evicted, their TTL, the SEP-45 auth interface, their dependency contracts, and their custom error codes                                              |
@@ -3007,3 +3010,23 @@ The test:
 - Forces garbage collection (`global.gc()`) and compares heap snapshots
 - Asserts retained heap size delta is < 1MB
 - Verifies CST cache nodes and event listeners are properly collected
+
+### Validator overlay and signer resilience audits
+
+These bounded network audits are opt-in and require `--check-network`:
+
+| Option | Module | Purpose |
+| --- | --- | --- |
+| `--audit-dos` | `src/overlay/dos-tester.ts` | Sends ten sequential TCP connection attempts per validator, checks reset/backoff behavior, and verifies a post-churn peer connection |
+| `--crawl-topology` | `src/overlay/topology-analyzer.ts` | Crawls `GET_PEERS`, computes shortest paths to marked core/Tier-1 validators, and flags paths longer than three hops |
+| `--audit-multisig` | `src/security/threshold-optimizer.ts` | Reads `SIGNING_KEY` and issuer accounts from Horizon and enumerates exact minimal low/medium/high threshold coalitions |
+| *(automatic)* | `src/validators/dns-discovery.ts` | Resolves `_stellar-core._tcp` SRV and companion TXT records, checks priority/weight/port values, and probes declared targets |
+
+The overlay checks emit `overlay/unprotected-connection-churn` (warning),
+`overlay/peer-socket-exhaustion` (error), `overlay/high-topological-distance`
+(warning), and `overlay/disconnected-peer-component` (error). DNS discovery
+emits `validators/dns-srv-record-missing` (warning) and
+`validators/dns-srv-target-unreachable` (error). The signer optimizer emits
+`security/useless-signer-detected` and `security/unintended-veto-key` (both
+warnings). All of these rules support the normal `--off`, `--warn`, and
+`--error` overrides.

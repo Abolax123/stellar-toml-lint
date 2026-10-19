@@ -2,6 +2,7 @@ import type { Rule } from '../types.js';
 import { KNOWN_VALIDATOR_FIELDS, RESERVED_VALIDATOR_ALIASES, specUrl } from '../spec.js';
 import { isAccountId, isHostPort, isString } from '../predicates.js';
 import { historyUrlRules } from './history-url-check.js';
+import { dnsDiscoveryRules } from '../validators/dns-discovery.js';
 
 /** Reads `[[VALIDATORS]]` as a list of tables, ignoring malformed entries. */
 function validatorsOf(doc: Record<string, unknown>): Record<string, unknown>[] {
@@ -248,6 +249,8 @@ export const validatorRules: Rule[] = [
       });
     },
   },
+
+  ...dnsDiscoveryRules,
 ];
 
 export { checkValidatorNetwork } from '../validators/check-validator.js';

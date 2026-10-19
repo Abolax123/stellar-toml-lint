@@ -112,6 +112,10 @@ import { checkValidatorDiversityFromDocument } from './validators/geo-diversity.
 import { validateAnchorDiscovery } from './validators/anchorDiscovery.js';
 import { checkOverlayPeers } from './overlay/crawler.js';
 import { checkOverlayHandshake } from './overlay/handshake.js';
+import { checkOverlayDos } from './overlay/dos-tester.js';
+import { checkOverlayTopology } from './overlay/topology-analyzer.js';
+import { checkValidatorDnsDiscovery } from './validators/dns-discovery.js';
+import { checkThresholdOptimizer } from './security/threshold-optimizer.js';
 import { allRules } from './rules/index.js';
 import { PRESETS, resolvePreset, type PresetName } from './presets.js';
 import { generateBadgeSvg, generateShieldsEndpoint } from './generators/badge.js';
@@ -208,6 +212,9 @@ interface Cli {
   verifyDirectorySync?: boolean;
   directoryFeeds?: string[];
   auditQuorum: boolean;
+  auditDos?: boolean;
+  auditMultisig?: boolean;
+  crawlTopology?: boolean;
   auditDiversity?: boolean;
   followLinks: boolean;
   verifySep10: boolean;
@@ -328,6 +335,12 @@ OPTIONS
                           ([[VALIDATORS]].QUORUM_SET or CONFIG_URL-linked
                           stellar-core.cfg) for split-brain risk and fragile
                           thresholds
+      --audit-multisig    With --check-network: compute exact minimal signer
+                          coalitions for low, medium, and high thresholds
+      --audit-dos         With --check-network: run ten sequential overlay
+                          connection attempts and verify graceful backoff
+      --crawl-topology    With --check-network: crawl GET_PEERS and report
+                          validator paths longer than three overlay hops
       --audit-diversity   With --check-network: resolve validator hosts and flag
                           ASN or geographic concentration (>33% in one bucket).
                           Enrichment uses the JSON table in ANCHOR_GEO_LOOKUP
@@ -696,6 +709,18 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.crawlPeers && cli.mockFixtures === undefined
               ? await checkOverlayPeers(domainResult.parsed, { rules })
               : []),
+            ...(cli.crawlTopology && cli.mockFixtures === undefined
+              ? await checkOverlayTopology(domainResult.parsed, { rules })
+              : []),
+            ...(cli.auditDos && cli.mockFixtures === undefined
+              ? await checkOverlayDos(domainResult.parsed, { rules })
+              : []),
+            ...(cli.mockFixtures === undefined
+              ? await checkValidatorDnsDiscovery(domainResult.parsed, { rules })
+              : []),
+            ...(cli.auditMultisig
+              ? await checkThresholdOptimizer(domainResult.parsed, { rules, fetchImpl })
+              : []),
             ...(await checkNetworkConsistency(domainResult.parsed, fetchImpl, { rules })),
             // The handshake dials each peer directly, so a hermetic run skips it.
             ...(cli.verifyOverlay && cli.mockFixtures === undefined
@@ -892,6 +917,12 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
+            if (cli.auditMultisig && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await checkThresholdOptimizer(fileResult.parsed, { rules, fetchImpl })),
+              );
+            }
+
             if (cli.verifySep6 && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await verifySep6Integration(fileResult.parsed, fetchImpl, { rules })),
@@ -1071,6 +1102,15 @@ async function main(argv: string[]): Promise<number> {
                   : []),
                 ...(cli.crawlPeers && cli.mockFixtures === undefined
                   ? await checkOverlayPeers(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.crawlTopology && cli.mockFixtures === undefined
+                  ? await checkOverlayTopology(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.auditDos && cli.mockFixtures === undefined
+                  ? await checkOverlayDos(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.mockFixtures === undefined
+                  ? await checkValidatorDnsDiscovery(fileResult.parsed, { rules })
                   : []),
                 ...(await auditTomlContractEnvMeta(fileResult.parsed, fetchImpl, {
                   rules,
@@ -1865,6 +1905,18 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--audit-quorum':
         cli.auditQuorum = true;
+        break;
+
+      case '--audit-multisig':
+        cli.auditMultisig = true;
+        break;
+
+      case '--audit-dos':
+        cli.auditDos = true;
+        break;
+
+      case '--crawl-topology':
+        cli.crawlTopology = true;
         break;
 
       case '--audit-diversity':

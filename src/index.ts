@@ -230,6 +230,42 @@ export type {
   ValidatorEndpoint,
 } from './overlay/handshake.js';
 export {
+  checkOverlayDos,
+  auditOverlayDos,
+  testOverlayDos,
+  runOverlayDosTest,
+  overlayDosRules,
+  overlayDosRuleIds,
+  OVERLAY_UNPROTECTED_CONNECTION_CHURN,
+  OVERLAY_PEER_SOCKET_EXHAUSTION,
+  UNPROTECTED_CONNECTION_CHURN_RULE,
+  PEER_SOCKET_EXHAUSTION_RULE,
+  DEFAULT_DOS_ATTEMPTS,
+  DEFAULT_DOS_TIMEOUT_MS,
+} from './overlay/dos-tester.js';
+export type {
+  DosAttempt,
+  DosAttemptStatus,
+  DosProbe,
+  DosProbeResult,
+  OverlayDosOptions,
+  OverlayDosResult,
+} from './overlay/dos-tester.js';
+export {
+  analyzeOverlayTopology,
+  analyzePeerTopology,
+  checkOverlayTopology,
+  auditOverlayTopology,
+  topologyAnalyzerRules,
+  topologyAnalyzerRuleIds,
+  OVERLAY_HIGH_TOPOLOGICAL_DISTANCE,
+  OVERLAY_DISCONNECTED_PEER_COMPONENT,
+  HIGH_TOPOLOGICAL_DISTANCE_RULE,
+  DISCONNECTED_PEER_COMPONENT_RULE,
+  DEFAULT_MAX_TOPOLOGICAL_HOPS,
+} from './overlay/topology-analyzer.js';
+export type { TopologyAnalysis, TopologyOptions } from './overlay/topology-analyzer.js';
+export {
   checkHistoryPublish,
   checkHistoryPublishState,
   checkHistoryPublishValidator,
@@ -308,6 +344,25 @@ export type {
   DnsResolver,
   DnsResolverResult,
 } from './security/dns-integrity.js';
+export {
+  checkValidatorDnsDiscovery,
+  checkDnsDiscovery,
+  auditValidatorDnsDiscovery,
+  resolveValidatorDnsDiscovery,
+  dnsDiscoveryRules,
+  dnsDiscoveryRuleIds,
+  VALIDATORS_DNS_SRV_RECORD_MISSING,
+  VALIDATORS_DNS_SRV_TARGET_UNREACHABLE,
+  DNS_SRV_RECORD_MISSING_RULE,
+  DNS_SRV_TARGET_UNREACHABLE_RULE,
+} from './validators/dns-discovery.js';
+export type {
+  DnsDiscoveryOptions,
+  DnsDiscoveryResolver,
+  DnsDiscoveryResult,
+  DnsTargetProbe,
+  SrvRecord,
+} from './validators/dns-discovery.js';
 export {
   parseSep7Uri,
   validateSep7Uri,
@@ -613,6 +668,32 @@ export type {
   MultisigAnalysisInput,
   MultisigAuditOptions,
 } from './security/multisig.js';
+export {
+  optimizeThresholds,
+  analyzeThresholds,
+  optimizeSignerWeights,
+  solveMinimalWinningCoalitions,
+  minimalWinningCoalitions,
+  findMinimalWinningCoalitions,
+  checkThresholdOptimizer,
+  auditThresholds,
+  checkMultisigThresholds,
+  thresholdOptimizerRules,
+  thresholdOptimizerRuleIds,
+  SECURITY_USELESS_SIGNER_DETECTED,
+  SECURITY_UNINTENDED_VETO_KEY,
+  USELESS_SIGNER_DETECTED_RULE,
+  UNINTENDED_VETO_KEY_RULE,
+} from './security/threshold-optimizer.js';
+export type {
+  ThresholdName,
+  ThresholdSigner,
+  Thresholds,
+  ThresholdAccount,
+  SignerCoalition,
+  ThresholdOptimization,
+  ThresholdOptimizerOptions,
+} from './security/threshold-optimizer.js';
 
 export {
   analyzeCtCertificates,

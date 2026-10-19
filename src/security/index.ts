@@ -14,3 +14,4 @@ export * from './sct-proof-verifier.js';
 export * from './dmarc-auditor.js';
 export * from './caa-auditor.js';
 export * from './tls-pfs-auditor.js';
+export * from './threshold-optimizer.js';
