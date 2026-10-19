@@ -13,6 +13,8 @@ import { lint } from '../lint.js';
 import type { Diagnostic } from '../types.js';
 import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
 import type { LspCodeAction } from './code-actions.js';
+import { getDocumentSymbols } from './document-symbols.js';
+import type { LspDocumentSymbol } from './document-symbols.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
 import type {
@@ -20,6 +22,7 @@ import type {
   DidChangeTextDocumentParams,
   DidCloseTextDocumentParams,
   DidOpenTextDocumentParams,
+  DocumentSymbolParams,
   HoverParams,
   LspInitializeResult,
   RpcMessage,
@@ -64,6 +67,7 @@ export async function runLspServer(
               textDocumentSync: { openClose: true, change: SYNC_FULL },
               codeActionProvider: { codeActionKinds: ['quickfix'] },
               hoverProvider: true,
+              documentSymbolProvider: true,
             },
             serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
           };
@@ -90,6 +94,13 @@ export async function runLspServer(
           const source = documents.get(params.textDocument.uri);
           if (source === undefined) return { jsonrpc: '2.0', id, result: null };
           const result: Hover | null = getHoverInfo(source, params.position);
+          return { jsonrpc: '2.0', id, result };
+        }
+        case 'textDocument/documentSymbol': {
+          const params = message.params as DocumentSymbolParams;
+          const source = documents.get(params.textDocument.uri);
+          if (source === undefined) return { jsonrpc: '2.0', id, result: [] };
+          const result: LspDocumentSymbol[] = getDocumentSymbols(source);
           return { jsonrpc: '2.0', id, result };
         }
         default:
