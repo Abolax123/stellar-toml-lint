@@ -41,6 +41,9 @@ import { gapAuditorRules } from '../history/gap-auditor.js';
 import { quorumSolverRules } from '../validators/quorum-solver.js';
 import { quorumAuditRules } from '../validators/quorum.js';
 import { dnsIntegrityRules } from '../security/dns-integrity.js';
+import { corpHeaderRules } from '../security/corp-auditor.js';
+import { mpcGovernanceRules } from '../security/mpc-governance.js';
+import { hstsAuditorRules } from '../security/hsts-auditor.js';
 import { dmarcAuditorRules, caaAuditorRules, tlsPfsAuditorRules } from '../security/index.js';
 import { certExpiryRules } from '../network/cert-expiry.js';
 import { bgpRouteDetectorRules } from '../network/bgp-route-detector.js';
@@ -155,7 +158,7 @@ export const allRules: Rule[] = [
   ...tlsPfsAuditorRules,
   ...bgpRouteDetectorRules,
   ...certExpiryRules,
-    ...hstsAuditorRules,
+  ...hstsAuditorRules,
   ...ipv6AuditorRules,
   // `httpVersionAuditorRules` is folded into `generalRules` (see
   // src/rules/general.ts, where the issue wires it), so it is exported rather

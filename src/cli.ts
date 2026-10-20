@@ -103,6 +103,7 @@ import {
 } from './validators/quorum.js';
 import { checkSplitBrain } from './validators/split-brain-solver.js';
 import { checkDnsIntegrity } from './security/dns-integrity.js';
+import { checkHsts } from './security/hsts-auditor.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
 import { checkSigningKeyRevocation } from './security/key-revocation.js';
 import { checkSigningKeyMultisig } from './security/multisig.js';
