@@ -314,6 +314,27 @@ export {
 } from './history/bucket-auditor.js';
 export type { BucketAuditorOptions, BucketReference } from './history/bucket-auditor.js';
 export {
+  checkHistoryGaps,
+  auditHistoryGaps,
+  verifyHistoryGaps,
+  findLedgerGaps,
+  groupGaps,
+  checkpointsInRange,
+  checkpointContaining,
+  checkpointFilePath,
+  checkpointHex,
+  isCheckpointLedger,
+  latestArchivedLedger,
+  gapAuditorRules,
+  gapAuditorRuleIds,
+  LEDGER_SEQUENCE_GAP_RULE,
+  HISTORY_LEDGER_SEQUENCE_GAP_DETECTED,
+  CHECKPOINT_FREQUENCY,
+  DEFAULT_GAP_AUDIT_LEDGERS,
+  DEFAULT_GAP_AUDIT_CONCURRENCY,
+} from './history/gap-auditor.js';
+export type { CheckpointCategory, GapAuditorOptions, LedgerGap } from './history/gap-auditor.js';
+export {
   checkQuorumIntersection,
   quorumSolverRules,
   quorumSolverRuleIds,

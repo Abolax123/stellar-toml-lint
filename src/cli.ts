@@ -94,6 +94,7 @@ import { simulateClawback } from './security/clawback-simulator.js';
 import { checkHistoryPublish } from './history/publish-validator.js';
 import { checkArchiveDiff } from './history/archive-diff.js';
 import { checkBucketIntegrity } from './history/bucket-auditor.js';
+import { checkHistoryGaps } from './history/gap-auditor.js';
 import {
   auditQuorumSets,
   formatQuorumSummaryTable,
@@ -238,6 +239,7 @@ interface Cli {
   verifyDnssec: boolean;
   verifyOverlay: boolean;
   verifyBuckets: boolean;
+  verifyHistoryGaps: boolean;
   badgeSvg?: string;
   badgeJson?: string;
   exportApConfig?: boolean;
@@ -388,6 +390,9 @@ OPTIONS
       --verify-buckets    With --check-network: download a sample of the archive
                           buckets a validator publishes, verify each against the
                           SHA-256 in its name, and decode its XDR entries
+      --verify-history-gaps
+                          With --check-network: confirm every 64-ledger checkpoint
+                          across the last 10,000 archived ledgers is downloadable
       --verify-overlay    With --check-network: complete the overlay TCP handshake
                           with each [[VALIDATORS]] HOST and check its network,
                           node ID, and protocol version
@@ -637,6 +642,9 @@ async function main(argv: string[]): Promise<number> {
             ...(await checkArchiveDiff(domainResult.parsed, fetchImpl, { rules })),
             ...(cli.verifyBuckets
               ? await checkBucketIntegrity(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyHistoryGaps
+              ? await checkHistoryGaps(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.auditQuorum || cli.auditSecurity
               ? await auditQuorumSets(domainResult.parsed, fetchImpl, { rules })
@@ -1097,6 +1105,9 @@ async function main(argv: string[]): Promise<number> {
                 ...(await checkMpcGovernance(fileResult.parsed, { rules, fetchImpl })),
                 ...(cli.verifyBuckets
                   ? await checkBucketIntegrity(fileResult.parsed, fetchImpl, { rules })
+                  : []),
+                ...(cli.verifyHistoryGaps
+                  ? await checkHistoryGaps(fileResult.parsed, fetchImpl, { rules })
                   : []),
                 ...(cli.auditQuorum || cli.auditSecurity
                   ? await auditQuorumSets(fileResult.parsed, fetchImpl, { rules })
@@ -1768,6 +1779,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     verifyDnssec: false,
     verifyOverlay: false,
     verifyBuckets: false,
+    verifyHistoryGaps: false,
     checkContracts: false,
     simulateSoroban: false,
     sorobanRentAudit: false,
@@ -2008,6 +2020,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--verify-buckets':
         cli.verifyBuckets = true;
+        break;
+
+      case '--verify-history-gaps':
+        cli.verifyHistoryGaps = true;
         break;
 
       case '--verify-dnssec':
