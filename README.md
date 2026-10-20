@@ -305,7 +305,7 @@ failure.
 | `--verify-clawback`                | Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC (requires `--check-network`)                                                                                                               |
 | `--crawl-peers`                    | Discover validator peers with overlay `GET_PEERS` messages (requires `--check-network`)                                                                                                                         |
 | `--verify-buckets`                 | Download a sample of each archive's `currentBuckets`, verify the SHA-256 of the decompressed stream, and decode the XDR `BucketEntry` stream (requires `--check-network`)                                       |
-| `--verify-overlay`                 | Complete the overlay TCP handshake with each `[[VALIDATORS]]` HOST and check its network, node ID, and protocol version (requires `--check-network`)                                                            |
+| `--verify-overlay`                 | Complete the overlay TCP handshake with each `[[VALIDATORS]]` HOST and check its network, node ID, and protocol version, then verify an HKDF/ChaCha20-Poly1305 sealed frame exchange (requires `--check-network`) |
 | `--audit-quorum`                   | Solve `[[VALIDATORS]]` quorum sets for split-brain risk and BFT; also emits `validators/partition-vulnerability` and `validators/critical-bridge-node` (requires `--check-network`)                             |
 | `--audit-multisig`                 | Enumerate exact signer coalitions for low, medium, and high account thresholds (requires `--check-network`)                                                                                                     |
 | `--audit-dos`                      | Run ten sequential overlay connection attempts and verify graceful backoff (requires `--check-network`)                                                                                                         |
@@ -1935,6 +1935,21 @@ one whose overlay version is behind the linter's emits `overlay/protocol-version
 An `AUTH` echo that does not authenticate is reported as negotiation that did not happen, not as a
 finding: what a node sends after its `HELLO` is its own business. Like the peer crawler, this opens its
 own sockets and is skipped under `--mock-fixtures`.
+
+**Overlay cipher session** (also with `--check-network --verify-overlay`) — a node whose key
+schedule is broken, or whose sequence counters drift, still sends a good `HELLO`; the failure only
+shows once frames flow under the derived keys. After the authenticated Curve25519 handshake (the
+peer's `AuthCert` must be signed by the node ID it announces and must not have expired, and its key
+must not be a low-order point), the linter runs HKDF-SHA256 — Extract over the X25519 secret and both
+announced keys, then Expand into one ChaCha20-Poly1305 key per direction bound to both `HELLO`
+nonces — and sends a `PEERS` peer-address request sealed at sequence 0. The peer's reply is decrypted
+and its Poly1305 tag verified at the sequence the linter expects next; the 12-byte header (version
+and sequence) is the AEAD's associated data and the sequence is its nonce, so a replayed or
+desynchronised frame fails exactly like a tampered one. A failed handshake or key setup emits
+`overlay/cipher-negotiation-failed` (error); a reply whose tag does not authenticate emits
+`overlay/mac-tag-mismatch` (error). A peer that does not engage with the sealed session — it answers
+in the plaintext HMAC overlay, as stellar-core does today, closes, or stays silent — is not reported,
+and unreachable peers are left to `overlay/handshake-timeout`. Skipped under `--mock-fixtures`.
 
 **Overlay cryptography** (used by the peer and session audits) — the auditor validates RFC 5869
 HKDF derivation, big-endian 4-byte message length framing, monotonic sequence numbers, and
