@@ -6,7 +6,8 @@ export const MISSING_HSTS_HEADER_RULE = 'security/missing-hsts-header';
 export const INSUFFICIENT_HSTS_MAX_AGE_RULE = 'security/insufficient-hsts-max-age';
 
 const MINIMUM_MAX_AGE = 31_536_000;
-const HSTS_DOC = 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security';
+const HSTS_DOC =
+  'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security';
 const CHECKED_FIELDS = [...HTTPS_ENDPOINT_FIELDS, 'HORIZON_URL'];
 
 export interface HstsOptions {
@@ -51,7 +52,13 @@ function parseDirectives(header: string): Map<string, string | true> {
     const separator = item.indexOf('=');
     const name = (separator < 0 ? item : item.slice(0, separator)).trim().toLowerCase();
     if (name === '') continue;
-    const value = separator < 0 ? true : item.slice(separator + 1).trim().replace(/^"|"$/g, '');
+    const value =
+      separator < 0
+        ? true
+        : item
+            .slice(separator + 1)
+            .trim()
+            .replace(/^"|"$/g, '');
     directives.set(name, value);
   }
   return directives;
@@ -66,7 +73,8 @@ export async function checkHsts(
   const endpoints = endpointsOf(doc);
   const missingSeverity = severityFor(MISSING_HSTS_HEADER_RULE, 'error', options.rules);
   const weakSeverity = severityFor(INSUFFICIENT_HSTS_MAX_AGE_RULE, 'warning', options.rules);
-  if (endpoints.length === 0 || (missingSeverity === undefined && weakSeverity === undefined)) return [];
+  if (endpoints.length === 0 || (missingSeverity === undefined && weakSeverity === undefined))
+    return [];
 
   const diagnostics: Diagnostic[] = [];
   for (const endpoint of endpoints) {

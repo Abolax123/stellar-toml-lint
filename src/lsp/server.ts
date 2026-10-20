@@ -80,7 +80,8 @@ export async function runLspServer(
           const params = message.params as {
             capabilities?: { textDocument?: { diagnostic?: unknown } };
           };
-          clientSupportsDiagnosticPull = params.capabilities?.textDocument?.diagnostic !== undefined;
+          clientSupportsDiagnosticPull =
+            params.capabilities?.textDocument?.diagnostic !== undefined;
           const result: LspInitializeResult = {
             capabilities: {
               textDocumentSync: { openClose: true, change: SYNC_FULL },
@@ -116,11 +117,20 @@ export async function runLspServer(
           const result: Hover | null = getHoverInfo(document.text, params.position);
           return { jsonrpc: '2.0', id, result };
         }
+        case 'textDocument/completion': {
+          const params = message.params as CompletionParams;
+          const document = documents.get(params.textDocument.uri);
+          const result =
+            document === undefined
+              ? { isIncomplete: false, items: [] }
+              : getCompletionItems(document.text, params.position);
+          return { jsonrpc: '2.0', id, result };
+        }
         case 'textDocument/semanticTokens/full': {
           const params = message.params as SemanticTokensParams;
-          const source = documents.get(params.textDocument.uri);
+          const document = documents.get(params.textDocument.uri);
           const result: SemanticTokens = {
-            data: source === undefined ? [] : computeSemanticTokens(source),
+            data: document === undefined ? [] : computeSemanticTokens(document.text),
           };
           return { jsonrpc: '2.0', id, result };
         }

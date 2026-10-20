@@ -20,6 +20,8 @@ export type RuleCategory =
   | 'currencies'
   | 'validators'
   | 'network'
+  | 'fees'
+  | 'sep24'
   | 'policy'
   | 'sep12'
   | 'monitor'
@@ -209,6 +211,8 @@ export interface StellarToml {
   WEB_AUTH_FOR_CONTRACTS_ENDPOINT?: string;
   DIRECT_PAYMENT_SERVER?: string;
   ANCHOR_QUOTE_SERVER?: string;
+  RECOVERY_SERVER?: string;
+  RECOVERY_SERVERS?: string[];
   DOCUMENTATION?: {
     ORG_NAME?: string;
     ORG_DBA?: string;

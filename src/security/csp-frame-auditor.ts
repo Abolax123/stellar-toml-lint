@@ -3,7 +3,8 @@ import type { Diagnostic, Rule, RuleOverrides, Severity } from '../types.js';
 export const BLOCKING_FRAME_ANCESTORS_RULE = 'security/blocking-frame-ancestors-directive';
 export const MISSING_CLICKJACKING_PROTECTION_RULE = 'security/missing-clickjacking-protection';
 
-const CSP_DOC = 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/frame-ancestors';
+const CSP_DOC =
+  'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/frame-ancestors';
 
 export interface CspFrameOptions {
   rules?: RuleOverrides;
@@ -49,15 +50,20 @@ export async function auditCspFramePolicy(
       .map((part) => part.trim())
       .find((part) => /^frame-ancestors(?:\s|$)/i.test(part));
     if (directive === undefined) return [];
-    return [directive.replace(/^frame-ancestors\s*/i, '').toLowerCase().split(/\s+/).filter(Boolean)];
+    return [
+      directive
+        .replace(/^frame-ancestors\s*/i, '')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean),
+    ];
   });
   const blocksEmbedding =
     framePolicies.some((sources) => sources.length === 1 && sources[0] === "'none'") ||
     ['deny', 'sameorigin'].includes(
       (response.headers.get('x-frame-options') ?? '').trim().toLowerCase(),
     );
-  const hasProtection =
-    framePolicies.length > 0 || response.headers.has('x-frame-options');
+  const hasProtection = framePolicies.length > 0 || response.headers.has('x-frame-options');
 
   if (blocksEmbedding && blockingSeverity !== undefined) {
     return [
@@ -69,7 +75,7 @@ export async function auditCspFramePolicy(
         path: 'TRANSFER_SERVER_SEP0024',
         helpUri: CSP_DOC,
         suggestion:
-          'Allow the wallet webview origins in frame-ancestors; do not use frame-ancestors \'none\' or X-Frame-Options DENY.',
+          "Allow the wallet webview origins in frame-ancestors; do not use frame-ancestors 'none' or X-Frame-Options DENY.",
       },
     ];
   }
@@ -103,7 +109,8 @@ export const cspFrameAuditorRules: Rule[] = [
     id: MISSING_CLICKJACKING_PROTECTION_RULE,
     category: 'network',
     severity: 'warning',
-    description: 'SEP-24 interactive pages should define a frame-ancestors or X-Frame-Options policy',
+    description:
+      'SEP-24 interactive pages should define a frame-ancestors or X-Frame-Options policy',
     run() {},
   },
 ];

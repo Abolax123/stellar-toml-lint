@@ -16,3 +16,5 @@ export * from './dmarc-auditor.js';
 export * from './caa-auditor.js';
 export * from './tls-pfs-auditor.js';
 export * from './threshold-optimizer.js';
+export * from './sni-auditor.js';
+export * from './subdomain-takeover.js';
