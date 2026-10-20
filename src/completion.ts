@@ -86,6 +86,10 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--lsp', description: 'Run as a Language Server on stdio' },
   { long: '--quiet', short: '-q', description: 'Report errors only' },
   { long: '--count', description: 'Print only problem count totals' },
+  {
+    long: '--semantic-hash',
+    description: 'Print a SHA-256 of the data, ignoring formatting and comments',
+  },
   { long: '--silent-success', description: 'Print nothing when a run has no diagnostics' },
   { long: '--quiet-success', description: 'Alias for --silent-success' },
   { long: '--show-help-urls', description: 'Print the spec link for each finding' },
@@ -105,6 +109,10 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--verify-sep38', description: 'Audit SEP-38 quotes, spreads, and expirations' },
   { long: '--crawl-peers', description: 'Discover and audit overlay peers' },
   { long: '--verify-buckets', description: 'Hash- and XDR-verify published archive buckets' },
+  {
+    long: '--verify-history-gaps',
+    description: 'Check every recent archive checkpoint is downloadable',
+  },
   { long: '--verify-overlay', description: 'Handshake with each validator over the overlay' },
   { long: '--verify-dnssec', description: 'Compare DNSSEC-validating DNS resolvers' },
   { long: '--check-contracts', description: 'Verify Soroban contracts on chain' },

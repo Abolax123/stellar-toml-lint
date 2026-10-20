@@ -94,6 +94,8 @@ import { simulateClawback } from './security/clawback-simulator.js';
 import { checkHistoryPublish } from './history/publish-validator.js';
 import { checkArchiveDiff } from './history/archive-diff.js';
 import { checkBucketIntegrity } from './history/bucket-auditor.js';
+import { checkBucketStreams } from './history/bucket-stream-validator.js';
+import { checkHistoryGaps } from './history/gap-auditor.js';
 import {
   auditQuorumSets,
   formatQuorumSummaryTable,
@@ -101,6 +103,7 @@ import {
 } from './validators/quorum.js';
 import { checkSplitBrain } from './validators/split-brain-solver.js';
 import { checkDnsIntegrity } from './security/dns-integrity.js';
+import { checkHsts } from './security/hsts-auditor.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
 import { checkSigningKeyRevocation } from './security/key-revocation.js';
 import { checkSigningKeyMultisig } from './security/multisig.js';
@@ -113,6 +116,7 @@ import { checkValidatorDiversityFromDocument } from './validators/geo-diversity.
 import { validateAnchorDiscovery } from './validators/anchorDiscovery.js';
 import { checkOverlayPeers } from './overlay/crawler.js';
 import { checkOverlayHandshake } from './overlay/handshake.js';
+import { checkOverlayCipher } from './overlay/index.js';
 import { checkOverlayDos } from './overlay/dos-tester.js';
 import { checkOverlayTopology } from './overlay/topology-analyzer.js';
 import { checkValidatorDnsDiscovery } from './validators/dns-discovery.js';
@@ -171,6 +175,7 @@ import { applyFixes } from './fix.js';
 import type { Diagnostic, LintResult, RuleOverrides, Severity } from './types.js';
 import { formatToml } from './format-file.js';
 import type { FormatResult } from './format-file.js';
+import { semanticHash } from './cst/semantic-hash.js';
 
 const VERSION = '0.1.0';
 const DEFAULT_PATH = 'stellar.toml';
@@ -196,6 +201,7 @@ interface Cli {
   domain?: string;
   format: Format;
   formatFile: boolean;
+  semanticHash: boolean;
   healthCheck?: boolean;
   strict: boolean;
   watch?: boolean;
@@ -238,6 +244,7 @@ interface Cli {
   verifyDnssec: boolean;
   verifyOverlay: boolean;
   verifyBuckets: boolean;
+  verifyHistoryGaps: boolean;
   badgeSvg?: string;
   badgeJson?: string;
   exportApConfig?: boolean;
@@ -292,6 +299,9 @@ USAGE
                                          Compare two versions for breaking changes
   cat stellar.toml | stellar-toml-lint - Lint stdin
   stellar-toml-lint --format-file <file> Rewrite the file in canonical SEP-1 layout
+  stellar-toml-lint --semantic-hash <file>
+                                         Print a SHA-256 of the file's data that
+                                         ignores whitespace, comments, and key order
 
 OPTIONS
   -d, --domain <domain>   Domain serving the file. Enables CORS, content-type,
@@ -387,10 +397,17 @@ OPTIONS
       --crawl-peers       Discover overlay peers with GET_PEERS and check connectivity
       --verify-buckets    With --check-network: download a sample of the archive
                           buckets a validator publishes, verify each against the
-                          SHA-256 in its name, and decode its XDR entries
+                          SHA-256 in its name, and decode its XDR entries; also
+                          range-read random buckets to check gzip headers, CRC32
+                          trailers, and leading BucketEntry records
+      --verify-history-gaps
+                          With --check-network: confirm every 64-ledger checkpoint
+                          across the last 10,000 archived ledgers is downloadable
       --verify-overlay    With --check-network: complete the overlay TCP handshake
                           with each [[VALIDATORS]] HOST and check its network,
-                          node ID, and protocol version
+                          node ID, and protocol version, then derive HKDF
+                          ChaCha20-Poly1305 session keys and verify one sealed
+                          frame exchange
       --verify-dnssec     Compare A/AAAA answers across DNSSEC-validating DoH resolvers
       --follow-links      Fetch and lint the toml pointers in CURRENCIES
                           (implied by --domain)
@@ -550,6 +567,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (cli.formatFile) return formatFiles(cli);
+  if (cli.semanticHash) return printSemanticHashes(cli);
 
   // The explorer is about rules, not about a file, so it runs before any path
   // is read and needs no file argument.
@@ -637,6 +655,12 @@ async function main(argv: string[]): Promise<number> {
             ...(await checkArchiveDiff(domainResult.parsed, fetchImpl, { rules })),
             ...(cli.verifyBuckets
               ? await checkBucketIntegrity(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyBuckets
+              ? await checkBucketStreams(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyHistoryGaps
+              ? await checkHistoryGaps(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.auditQuorum || cli.auditSecurity
               ? await auditQuorumSets(domainResult.parsed, fetchImpl, { rules })
@@ -742,6 +766,9 @@ async function main(argv: string[]): Promise<number> {
             // The handshake dials each peer directly, so a hermetic run skips it.
             ...(cli.verifyOverlay && cli.mockFixtures === undefined
               ? await checkOverlayHandshake(domainResult.parsed, { rules })
+              : []),
+            ...(cli.verifyOverlay && cli.mockFixtures === undefined
+              ? await checkOverlayCipher(domainResult.parsed, { rules })
               : []),
             // A certificate probe opens its own socket rather than going
             // through the fixture transport, so hermetic runs skip it.
@@ -1098,6 +1125,12 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.verifyBuckets
                   ? await checkBucketIntegrity(fileResult.parsed, fetchImpl, { rules })
                   : []),
+                ...(cli.verifyBuckets
+                  ? await checkBucketStreams(fileResult.parsed, fetchImpl, { rules })
+                  : []),
+                ...(cli.verifyHistoryGaps
+                  ? await checkHistoryGaps(fileResult.parsed, fetchImpl, { rules })
+                  : []),
                 ...(cli.auditQuorum || cli.auditSecurity
                   ? await auditQuorumSets(fileResult.parsed, fetchImpl, { rules })
                   : []),
@@ -1173,6 +1206,9 @@ async function main(argv: string[]): Promise<number> {
                 // Dials each peer directly, outside the fixture transport.
                 ...(cli.verifyOverlay && cli.mockFixtures === undefined
                   ? await checkOverlayHandshake(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.verifyOverlay && cli.mockFixtures === undefined
+                  ? await checkOverlayCipher(fileResult.parsed, { rules })
                   : []),
                 // SDEX corridors, history archives, and bridge reserves all
                 // target the network the file declares.
@@ -1668,6 +1704,45 @@ async function formatFiles(cli: Cli): Promise<number> {
   return failed ? 2 : 0;
 }
 
+/**
+ * `--semantic-hash`: one `<sha256>  <name>` line per file, in the layout
+ * `sha256sum` uses, so a CI step can compare it against an approved value.
+ * `--format json` prints the hashes and canonical forms as one JSON array.
+ */
+async function printSemanticHashes(cli: Cli): Promise<number> {
+  if (cli.domain && cli.paths.length === 0) {
+    process.stderr.write('--semantic-hash hashes local files; pass a path or - for stdin.\n');
+    return 2;
+  }
+
+  const paths = cli.paths.length > 0 ? cli.paths : [DEFAULT_PATH];
+  const results: { file: string; hash: string; canonical: string }[] = [];
+  let failed = false;
+
+  for (const path of paths) {
+    const name = path === '-' ? 'stdin' : path;
+    try {
+      const source = path === '-' ? await readStdin() : await readFile(path, 'utf8');
+      const result = semanticHash(source);
+      if (!result.ok) {
+        const at =
+          result.line === undefined ? '' : ` at line ${result.line}, column ${result.column ?? 1}`;
+        process.stderr.write(`${name}${at}: ${result.error}\n`);
+        failed = true;
+        continue;
+      }
+      results.push({ file: name, hash: result.hash, canonical: result.canonical });
+      if (cli.format !== 'json') process.stdout.write(`${result.hash}  ${name}\n`);
+    } catch (error) {
+      process.stderr.write(`${message(error)}\n`);
+      failed = true;
+    }
+  }
+
+  if (cli.format === 'json') process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+  return failed ? 2 : 0;
+}
+
 function formatFailure(name: string, result: Extract<FormatResult, { ok: false }>): string {
   const at =
     result.line === undefined ? '' : ` at line ${result.line}, column ${result.column ?? 1}`;
@@ -1750,6 +1825,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     paths: [],
     format: 'text',
     formatFile: false,
+    semanticHash: false,
     strict: false,
     quiet: false,
     count: false,
@@ -1768,6 +1844,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     verifyDnssec: false,
     verifyOverlay: false,
     verifyBuckets: false,
+    verifyHistoryGaps: false,
     checkContracts: false,
     simulateSoroban: false,
     sorobanRentAudit: false,
@@ -1843,6 +1920,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--format-file':
         cli.formatFile = true;
+        break;
+
+      case '--semantic-hash':
+        cli.semanticHash = true;
         break;
 
       case '-f':
@@ -2008,6 +2089,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--verify-buckets':
         cli.verifyBuckets = true;
+        break;
+
+      case '--verify-history-gaps':
+        cli.verifyHistoryGaps = true;
         break;
 
       case '--verify-dnssec':

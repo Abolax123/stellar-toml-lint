@@ -12,6 +12,13 @@
 export { lint, lintDomain } from './lint.js';
 export { formatToml } from './format-file.js';
 export type { FormatResult } from './format-file.js';
+export {
+  semanticHash,
+  semanticallyEqual,
+  canonicalize,
+  hashCanonical,
+} from './cst/semantic-hash.js';
+export type { SemanticHashResult } from './cst/semantic-hash.js';
 export { lspMain } from './lsp.js';
 export {
   parseCst,
@@ -217,6 +224,36 @@ export {
   OVERLAY_MAC_BYTES,
   ENVELOPE_TYPE_AUTH,
 } from './overlay/handshake.js';
+export {
+  checkOverlayCipher,
+  verifyOverlayCipher,
+  verifyCipherSession,
+  cipherFindings,
+  deriveCipherKeys,
+  cipherNonce,
+  sealFrame,
+  openFrame,
+  encodePeerAddressRequest,
+  openSocketChannel,
+  overlayCipherRules,
+  overlayCipherRuleIds,
+  OVERLAY_CIPHER_NEGOTIATION_FAILED_RULE,
+  OVERLAY_MAC_TAG_MISMATCH_RULE,
+  CIPHER_NEGOTIATION_FAILED_RULE,
+  MAC_TAG_MISMATCH_RULE,
+  CHACHA20_POLY1305_KEY_BYTES,
+  CHACHA20_POLY1305_NONCE_BYTES,
+  POLY1305_TAG_BYTES,
+  SEALED_FRAME_HEADER_BYTES,
+} from './overlay/cipher-verifier.js';
+export type {
+  CipherChannel,
+  CipherChannelFactory,
+  CipherKeys,
+  CipherOutcome,
+  CipherVerifierOptions,
+  OpenedFrame,
+} from './overlay/cipher-verifier.js';
 export type {
   AnnouncedHello,
   EphemeralIdentity,
@@ -313,6 +350,55 @@ export {
   DEFAULT_MAX_BUCKET_BYTES,
 } from './history/bucket-auditor.js';
 export type { BucketAuditorOptions, BucketReference } from './history/bucket-auditor.js';
+export {
+  checkBucketStreams,
+  verifyBucketStreams,
+  auditBucketStreams,
+  validateBucketStream,
+  parseGzipHeader,
+  verifyGzipMember,
+  inflatePrefix,
+  decodeLeadingBucketEntries,
+  normalizeBucketReference,
+  sampleRandomBuckets,
+  crc32,
+  bucketStreamRules,
+  bucketStreamRuleIds,
+  CORRUPTED_BUCKET_GZIP_STREAM_RULE,
+  TRUNCATED_BUCKET_XDR_RULE,
+  HISTORY_CORRUPTED_BUCKET_GZIP_STREAM,
+  HISTORY_TRUNCATED_BUCKET_XDR,
+  DEFAULT_BUCKET_STREAM_SAMPLE_COUNT,
+  DEFAULT_BUCKET_RANGE_BYTES,
+  DEFAULT_FULL_VERIFY_MAX_BYTES,
+  DEFAULT_LEADING_ENTRIES,
+} from './history/bucket-stream-validator.js';
+export type {
+  BucketStreamOptions,
+  BucketStreamVerdict,
+  GzipHeaderResult,
+} from './history/bucket-stream-validator.js';
+export {
+  checkHistoryGaps,
+  auditHistoryGaps,
+  verifyHistoryGaps,
+  findLedgerGaps,
+  groupGaps,
+  checkpointsInRange,
+  checkpointContaining,
+  checkpointFilePath,
+  checkpointHex,
+  isCheckpointLedger,
+  latestArchivedLedger,
+  gapAuditorRules,
+  gapAuditorRuleIds,
+  LEDGER_SEQUENCE_GAP_RULE,
+  HISTORY_LEDGER_SEQUENCE_GAP_DETECTED,
+  CHECKPOINT_FREQUENCY,
+  DEFAULT_GAP_AUDIT_LEDGERS,
+  DEFAULT_GAP_AUDIT_CONCURRENCY,
+} from './history/gap-auditor.js';
+export type { CheckpointCategory, GapAuditorOptions, LedgerGap } from './history/gap-auditor.js';
 export {
   checkQuorumIntersection,
   quorumSolverRules,

@@ -1104,6 +1104,42 @@
     "validators/critical-bridge-node": {
       "units": 0,
       "rmeFraction": 0
+    },
+    "history/corrupted-bucket-gzip-stream": {
+      "units": 0,
+      "rmeFraction": 0.0123
+    },
+    "history/ledger-sequence-gap-detected": {
+      "units": 0,
+      "rmeFraction": 0.0017
+    },
+    "history/truncated-bucket-xdr": {
+      "units": 0,
+      "rmeFraction": 0.0011
+    },
+    "overlay/cipher-negotiation-failed": {
+      "units": 0,
+      "rmeFraction": 0.1143
+    },
+    "overlay/mac-tag-mismatch": {
+      "units": 0,
+      "rmeFraction": 0.5152
+    },
+    "security/insufficient-mpc-threshold": {
+      "units": 0,
+      "rmeFraction": 0.0144
+    },
+    "security/missing-corp-header": {
+      "units": 0,
+      "rmeFraction": 0.2651
+    },
+    "security/missing-nosniff-header": {
+      "units": 0,
+      "rmeFraction": 0.0004
+    },
+    "security/missing-opener-policy": {
+      "units": 0,
+      "rmeFraction": 0.0378
     }
   }
 }

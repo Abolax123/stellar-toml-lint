@@ -76,7 +76,10 @@ function fetchServer(routes: Routes): typeof fetch {
     if (url.pathname === '/deposit/itxn_sep24_001') {
       return (
         routes.interactivePage ??
-        (() => new Response(null, { headers: { 'content-security-policy': 'frame-ancestors https://wallet.example' } }))
+        (() =>
+          new Response(null, {
+            headers: { 'content-security-policy': 'frame-ancestors https://wallet.example' },
+          }))
       )();
     }
 
@@ -197,7 +200,9 @@ describe('SEP-24 hosted deposit and withdrawal flow validator', () => {
       DOC,
       fetchServer({ interactivePage: () => new Response(null) }),
     );
-    expect(diagnostics.some((item) => item.rule === MISSING_CLICKJACKING_PROTECTION_RULE)).toBe(true);
+    expect(diagnostics.some((item) => item.rule === MISSING_CLICKJACKING_PROTECTION_RULE)).toBe(
+      true,
+    );
   });
 
   it('asserts sep24/info-endpoint-unreachable as a warning when /info throws', async () => {
