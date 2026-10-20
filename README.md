@@ -637,6 +637,12 @@ normalize a near-miss `NETWORK_PASSPHRASE`, reduce a social URL to a bare handle
 number as E.164). Unfixable parse errors never produce a code action. Point your editor's LSP
 client at the `stellar-toml-lint` binary with `--lsp`.
 
+Hovering a `contract_id = "C..."` line shows the contract's custom errors as a Markdown table
+(code, name, doc string) decoded from the `ScSpecUdtErrorEnumV0` entries in its deployed WASM.
+The WASM is read from `<cache>/<contract id>.wasm` when present (`STELLAR_TOML_LINT_WASM_CACHE`,
+default `.stellar-toml-lint/wasm`), otherwise fetched from the Soroban RPC of the declared
+`NETWORK_PASSPHRASE`. Works in any LSP client, including VS Code and JetBrains.
+
 Hovering a key or a table header shows the SEP-1 documentation for what is under the cursor: the
 qualified name (`[[CURRENCIES]].display_decimals`), its type (`integer (0-7)`), the specification's
 own description, the permitted values where SEP-1 enumerates them (`live`, `dead`, `test`,

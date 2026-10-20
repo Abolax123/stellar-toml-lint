@@ -16,6 +16,7 @@ import type { Diagnostic } from '../types.js';
 import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
 import type { LspCodeAction } from './code-actions.js';
 import { getCompletionItems } from './completion-provider.js';
+import { contractIdOnLine, getContractHover } from './contract-hover.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
 import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
@@ -113,6 +114,23 @@ export async function runLspServer(
           const params = message.params as HoverParams;
           const document = documents.get(params.textDocument.uri);
           if (document === undefined) return { jsonrpc: '2.0', id, result: null };
+          const line = document.text.split(/\r?\n/)[params.position.line] ?? '';
+          if (contractIdOnLine(line) !== undefined) {
+            // WASM resolution may hit the network: answer once it settles.
+            void getContractHover(document.text, params.position).then(
+              (hover) => {
+                send({
+                  jsonrpc: '2.0',
+                  id,
+                  result: hover ?? getHoverInfo(document.text, params.position),
+                });
+              },
+              () => {
+                send({ jsonrpc: '2.0', id, result: null });
+              },
+            );
+            return { jsonrpc: '2.0', id: null };
+          }
           const result: Hover | null = getHoverInfo(document.text, params.position);
           return { jsonrpc: '2.0', id, result };
         }
