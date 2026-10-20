@@ -131,27 +131,30 @@ it was before.
 
 ### Options
 
-| Flag                    | Effect                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `-d, --domain <d>`      | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks           |
-| `-f, --format <fmt>`    | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`, `sonar`        |
-| `--format-file`         | Rewrite files in place in canonical SEP-1 layout                                |
-| `--semantic-hash`       | Print a SHA-256 of each file's data, ignoring whitespace, comments, key order   |
-| `--strict`              | Treat warnings as errors                                                        |
-| `--max-warnings <n>`    | Fail if warnings exceed `n`                                                     |
-| `--check-network`       | Verify accounts, `HORIZON_URL`, `AUTH_SERVER`, and `ANCHOR_QUOTE_SERVER` online |
-| `--off <rule>`          | Disable a rule (repeatable)                                                     |
-| `--error <rule>`        | Raise a rule to error (repeatable)                                              |
-| `--warn <rule>`         | Lower a rule to warning (repeatable)                                            |
-| `-q, --quiet`           | Show errors only                                                                |
-| `--count`               | Print only problem count totals                                                 |
-| `--silent-success`      | Print nothing on stdout when a run has no diagnostics                           |
-| `--export-anchor-tests` | Generate a JSON configuration for `@stellar/anchor-tests`                       |
-| `--show-help-urls`      | Print the spec link for each finding                                            |
-| `--list-rules`          | Print every rule and exit                                                       |
-| `--explore-rules`       | Fuzzy-search rules interactively and preview `--off`/`--warn`/`--error` flags   |
-| `--no-suggestions`      | Hide diagnostic suggestions in the output                                       |
-| `--check-network`       | Validate `ORG_OFFICIAL_EMAIL` domain MX records for email deliverability        |
+| Flag                      | Effect                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `-d, --domain <d>`        | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks           |
+| `-f, --format <fmt>`      | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`, `sonar`        |
+| `--format-file`           | Rewrite files in place in canonical SEP-1 layout                                |
+| `--semantic-hash`         | Print a SHA-256 of each file's data, ignoring whitespace, comments, key order   |
+| `--strict`                | Treat warnings as errors                                                        |
+| `--max-warnings <n>`      | Fail if warnings exceed `n`                                                     |
+| `--check-network`         | Verify accounts, `HORIZON_URL`, `AUTH_SERVER`, and `ANCHOR_QUOTE_SERVER` online |
+| `--audit-fees`            | Compare fee disclosures across SEP-1, SEP-6, SEP-24, and SEP-38                 |
+| `--verify-postmessage`    | Inspect SEP-24 interactive `postMessage` callbacks                              |
+| `--postmessage-url <url>` | Interactive SEP-24 URL to inspect                                               |
+| `--off <rule>`            | Disable a rule (repeatable)                                                     |
+| `--error <rule>`          | Raise a rule to error (repeatable)                                              |
+| `--warn <rule>`           | Lower a rule to warning (repeatable)                                            |
+| `-q, --quiet`             | Show errors only                                                                |
+| `--count`                 | Print only problem count totals                                                 |
+| `--silent-success`        | Print nothing on stdout when a run has no diagnostics                           |
+| `--export-anchor-tests`   | Generate a JSON configuration for `@stellar/anchor-tests`                       |
+| `--show-help-urls`        | Print the spec link for each finding                                            |
+| `--list-rules`            | Print every rule and exit                                                       |
+| `--explore-rules`         | Fuzzy-search rules interactively and preview `--off`/`--warn`/`--error` flags   |
+| `--no-suggestions`        | Hide diagnostic suggestions in the output                                       |
+| `--check-network`         | Validate `ORG_OFFICIAL_EMAIL` domain MX records for email deliverability        |
 
 | Flag                      | Effect                                                                          |
 | ------------------------- | ------------------------------------------------------------------------------- |
@@ -1739,6 +1742,8 @@ interface Diagnostic {
     | 'currencies'
     | 'validators'
     | 'network'
+    | 'fees'
+    | 'sep24'
     | 'sep12';
   message: string;
   path?: string; // 'CURRENCIES[1].issuer'
@@ -2309,6 +2314,25 @@ XDR stream. Verifies that token contracts implement all 11 mandatory SEP-41 func
 `authorized`, `transfer`, `transfer_from`, `burn`, `burn_from`, `decimals`, `name`, `symbol`), validating parameter counts,
 argument types, and return types. Emits `soroban/wasm-not-found` (error), `soroban/missing-contract-spec` (error),
 `soroban/missing-sep41-function` (error), or `soroban/invalid-sep41-signature` (error).
+
+With `--check-network --audit-fees`, the linter also compares the fees an anchor publishes in
+`[[CURRENCIES]]` (`fee_fixed`, `fee_percent`, `fee_minimum`, and tiered `fee_tiers`/`fee_schedule`
+structures) against the deposit and withdrawal fees returned by `TRANSFER_SERVER/info`,
+`TRANSFER_SERVER_SEP0024/info`, and any explicit fee fields in `ANCHOR_QUOTE_SERVER/prices`. Fixed,
+percentage, or tiered schedules that disagree for the same asset emit
+`fees/contradictory-fee-schedules` (error), so a wallet never discovers the real price mid-transfer.
+An endpoint that charges a higher percentage than `stellar.toml` declares emits
+`fees/undisclosed-percentage-fee` (warning), surfacing hidden consumer costs before they are applied.
+
+With `--check-network --verify-postmessage`, the linter loads the anchor's SEP-24 interactive page in
+a headless browser and records outgoing `postMessage` callbacks. A callback sent with
+`targetOrigin: "*"` emits `sep24/insecure-postmessage-wildcard` (warning), because any embedding page
+can read the transaction payload. A callback whose payload is not a valid SEP-24 event such as
+`{ "type": "stellar:transaction_completed" }` emits `sep24/malformed-postmessage-payload` (error).
+The probe creates a test deposit session to discover the interactive URL; pass `--postmessage-url`
+to inspect a known URL directly. This check needs Playwright or Puppeteer installed in the
+environment running the linter (`npm install playwright && npx playwright install chromium`, or
+`npm install puppeteer`).
 
 ### Severity
 

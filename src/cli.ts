@@ -47,6 +47,7 @@ import { checkDisplayDecimals } from './rules/display-decimals-audit.js';
 import { checkHorizon } from './rules/horizon-check.js';
 import { checkSep3Auth } from './rules/sep3-auth.js';
 import { checkSep38 } from './rules/sep38-endpoints.js';
+import { checkCrossSepFees } from './rules/cross-sep-fee-auditor.js';
 import { checkRegulatedIssuerFlags } from './rules/regulated-flags.js';
 import { checkFixedSupplyIssuerLocks } from './rules/fixed-supply-audit.js';
 import { checkContracts } from './soroban.js';
@@ -85,7 +86,7 @@ import { verifySep38 } from './protocols/sep38.js';
 import { validateIpfsMetadata } from './validators/ipfsMetadata.js';
 import { auditTomlInstanceStorage } from './soroban/instance-storage-auditor.js';
 import { auditTomlAccountData } from './security/account-data-auditor.js';
-import { verifySep24 } from './protocols/sep24.js';
+import { checkSep24PostMessage, verifySep24 } from './protocols/sep24.js';
 import { verifySep12 } from './protocols/sep12.js';
 import { verifySep12Deletion } from './protocols/sep12-deletion.js';
 import { verifySep30 } from './protocols/sep30.js';
@@ -124,6 +125,7 @@ import { checkOverlayTopology } from './overlay/topology-analyzer.js';
 import { checkValidatorDnsDiscovery } from './validators/dns-discovery.js';
 import { checkThresholdOptimizer } from './security/threshold-optimizer.js';
 import { allRules } from './rules/index.js';
+import { isUrl } from './predicates.js';
 import { PRESETS, resolvePreset, type PresetName } from './presets.js';
 import { generateBadgeSvg, generateShieldsEndpoint } from './generators/badge.js';
 import {
@@ -217,6 +219,9 @@ interface Cli {
   maxWarnings?: number;
   failOn?: Severity;
   checkNetwork: boolean;
+  auditFees: boolean;
+  verifyPostmessage: boolean;
+  postmessageUrl?: string;
   checkIpv6?: boolean;
   auditRouting?: boolean;
   expectedAsns?: string[];
@@ -393,6 +398,15 @@ OPTIONS
       --verify-sep30      Coordinate multi-party recovery signing and verify threshold compliance
       --verify-sep24-quote-lock
                           Audit SEP-24 interactive deposit fee quote stability across session
+      --audit-fees        Compare fixed and percentage fees across stellar.toml,
+                          SEP-6 /info, SEP-24 /info, and SEP-38 /prices
+                          (implies --check-network)
+      --verify-postmessage
+                          Inspect SEP-24 interactive postMessage callbacks
+                          (implies --check-network; needs Playwright or Puppeteer)
+      --postmessage-url <url>
+                          Interactive SEP-24 URL to inspect instead of creating
+                          a test deposit session
       --verify-clawback   Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC
       --verify-sep8-webhook
                            Simulate SEP-8 regulated asset post-signing approval webhook
@@ -742,8 +756,17 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifySep38
               ? await verifySep38(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.auditFees
+              ? await checkCrossSepFees(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(cli.verifySep24
               ? await verifySep24(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyPostmessage
+              ? await checkSep24PostMessage(domainResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.postmessageUrl !== undefined ? { url: cli.postmessageUrl } : {}),
+                })
               : []),
             ...(cli.verifySep12Deletion && cli.checkNetwork
               ? await verifySep12Deletion(domainResult.parsed, fetchImpl, { rules })
@@ -1038,9 +1061,24 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
+            if (cli.auditFees && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await checkCrossSepFees(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
             if (cli.verifySep24 && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await verifySep24(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
+            if (cli.verifyPostmessage && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await checkSep24PostMessage(fileResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.postmessageUrl !== undefined ? { url: cli.postmessageUrl } : {}),
+                })),
               );
             }
 
@@ -1851,6 +1889,8 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     showHelp: false,
     rules: {},
     checkNetwork: false,
+    auditFees: false,
+    verifyPostmessage: false,
     auditQuorum: false,
     auditDiversity: false,
     followLinks: false,
@@ -1998,6 +2038,25 @@ function parseArgs(argv: string[]): Cli | 'handled' {
       case '--check-network':
         cli.checkNetwork = true;
         break;
+
+      case '--audit-fees':
+        cli.auditFees = true;
+        cli.checkNetwork = true;
+        break;
+
+      case '--verify-postmessage':
+        cli.verifyPostmessage = true;
+        cli.checkNetwork = true;
+        break;
+
+      case '--postmessage-url': {
+        const value = requireValue(argv, ++i, arg);
+        if (!isUrl(value)) {
+          throw new Error('--postmessage-url expects an http or https URL.');
+        }
+        cli.postmessageUrl = value;
+        break;
+      }
 
       case '--check-ipv6':
         cli.checkIpv6 = true;
