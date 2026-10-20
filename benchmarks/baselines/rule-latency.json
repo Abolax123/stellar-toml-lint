@@ -537,6 +537,10 @@
       "units": 0.0001,
       "rmeFraction": 0.0032
     },
+    "security/dangling-cname-takeover-risk": {
+      "units": 0,
+      "rmeFraction": 0.0028
+    },
     "security/dns-resolver-divergence": {
       "units": 0,
       "rmeFraction": 0.0028
@@ -588,6 +592,10 @@
     "security/signing-key-unusable": {
       "units": 0,
       "rmeFraction": 0.004
+    },
+    "security/sni-fallback-information-leak": {
+      "units": 0,
+      "rmeFraction": 0.0028
     },
     "security/single-signer-high-threshold": {
       "units": 0,

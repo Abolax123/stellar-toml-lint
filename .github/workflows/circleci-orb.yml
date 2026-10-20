@@ -1,0 +1,28 @@
+name: CircleCI Orb
+
+on:
+  pull_request:
+    paths:
+      - integrations/circleci/**
+      - .github/workflows/circleci-orb.yml
+  push:
+    branches: [main]
+    tags: ['circleci-orb-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: circleci/setup-cli@v1
+      - name: Validate Orb
+        run: circleci orb validate integrations/circleci/orb.yml
+      - name: Publish Orb release
+        if: startsWith(github.ref, 'refs/tags/circleci-orb-v')
+        env:
+          CIRCLECI_CLI_TOKEN: ${{ secrets.CIRCLECI_CLI_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: circleci orb publish integrations/circleci/orb.yml "anchor-tools/stellar-toml-lint@${RELEASE_TAG#circleci-orb-v}"

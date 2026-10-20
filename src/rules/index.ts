@@ -38,7 +38,13 @@ import { bucketAuditorRules } from '../history/bucket-auditor.js';
 import { quorumSolverRules } from '../validators/quorum-solver.js';
 import { quorumAuditRules } from '../validators/quorum.js';
 import { dnsIntegrityRules } from '../security/dns-integrity.js';
-import { dmarcAuditorRules, caaAuditorRules, tlsPfsAuditorRules } from '../security/index.js';
+import {
+  dmarcAuditorRules,
+  caaAuditorRules,
+  tlsPfsAuditorRules,
+  sniAuditorRules,
+  subdomainTakeoverRules,
+} from '../security/index.js';
 import { certExpiryRules } from '../network/cert-expiry.js';
 import { bgpRouteDetectorRules } from '../network/bgp-route-detector.js';
 import { ipv6AuditorRules } from '../network/ipv6-auditor.js';
@@ -141,6 +147,8 @@ export const allRules: Rule[] = [
   ...dmarcAuditorRules,
   ...caaAuditorRules,
   ...tlsPfsAuditorRules,
+  ...sniAuditorRules,
+  ...subdomainTakeoverRules,
   ...bgpRouteDetectorRules,
   ...certExpiryRules,
   ...ipv6AuditorRules,
