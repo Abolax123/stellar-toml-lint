@@ -82,6 +82,8 @@ import { historyArchiveRules } from '../validators/historyArchive.js';
 import { bridgeReserveRules } from '../validators/bridgeReserve.js';
 import { corridorRoutingRules } from '../corridors/routingVerifier.js';
 import { redosDetectorRules } from './redos-detector.js';
+import { overlayDosRules } from '../overlay/dos-tester.js';
+import { topologyAnalyzerRules } from '../overlay/topology-analyzer.js';
 
 /** Every rule, in report order. */
 export const allRules: Rule[] = [
@@ -100,6 +102,8 @@ export const allRules: Rule[] = [
   ...historyArchiveRules,
   ...securityRules,
   ...multisigRules,
+  ...corpHeaderRules,
+  ...mpcGovernanceRules,
 
   emailMxRule,
 
@@ -137,6 +141,8 @@ export const allRules: Rule[] = [
   ...corsPreflightRules,
   ...overlayCrawlerRules,
   ...overlayHandshakeRules,
+  ...overlayDosRules,
+  ...topologyAnalyzerRules,
   ...cryptoAuditorRules,
   ...historyPublishRules,
   ...archiveDiffRules,
@@ -151,6 +157,7 @@ export const allRules: Rule[] = [
   ...subdomainTakeoverRules,
   ...bgpRouteDetectorRules,
   ...certExpiryRules,
+    ...hstsAuditorRules,
   ...ipv6AuditorRules,
   // `httpVersionAuditorRules` is folded into `generalRules` (see
   // src/rules/general.ts, where the issue wires it), so it is exported rather

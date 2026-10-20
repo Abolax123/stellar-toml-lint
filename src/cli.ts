@@ -7,7 +7,6 @@
  * dependency tree small enough to audit by eye.
  */
 import { readFile, writeFile } from 'node:fs/promises';
-import { watch } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { assertKnownRule, loadConfig } from './config.js';
@@ -102,10 +101,12 @@ import {
   formatQuorumSummaryTable,
   simulateQuorumBft,
 } from './validators/quorum.js';
+import { checkSplitBrain } from './validators/split-brain-solver.js';
 import { checkDnsIntegrity } from './security/dns-integrity.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
 import { checkSigningKeyRevocation } from './security/key-revocation.js';
 import { checkSigningKeyMultisig } from './security/multisig.js';
+import { checkMpcGovernance } from './security/mpc-governance.js';
 import { checkCertificateTransparencyFromDocument } from './security/ct-auditor.js';
 import { auditEmailDns } from './security/dmarc-auditor.js';
 import { auditCaa } from './security/caa-auditor.js';
@@ -114,6 +115,10 @@ import { checkValidatorDiversityFromDocument } from './validators/geo-diversity.
 import { validateAnchorDiscovery } from './validators/anchorDiscovery.js';
 import { checkOverlayPeers } from './overlay/crawler.js';
 import { checkOverlayHandshake } from './overlay/handshake.js';
+import { checkOverlayDos } from './overlay/dos-tester.js';
+import { checkOverlayTopology } from './overlay/topology-analyzer.js';
+import { checkValidatorDnsDiscovery } from './validators/dns-discovery.js';
+import { checkThresholdOptimizer } from './security/threshold-optimizer.js';
 import { allRules } from './rules/index.js';
 import { PRESETS, resolvePreset, type PresetName } from './presets.js';
 import { generateBadgeSvg, generateShieldsEndpoint } from './generators/badge.js';
@@ -127,9 +132,11 @@ import { generateDiagram, type GraphFormat } from './generators/diagram.js';
 import { deliverWebhooks, isSupportedWebhookUrl } from './reporters/webhook.js';
 import { runHealthCheck, formatHealthCheckTable } from './health-check.js';
 import { runDashboard, supportsDashboard } from './ui/dashboard.js';
+import { runRuleExplorerCli } from './ui/rule-explorer.js';
 import { loadPolicy, validatePolicy, evaluatePolicy } from './policy/engine.js';
 import { createFixtureFetch } from './mock-fixtures.js';
 import { runLspServer } from './lsp/server.js';
+import { startSmartWatch } from './watcher/smart-watch.js';
 import { getTomlJsonSchema } from './schema.js';
 import { generateCompletion, isCompletionShell } from './completion.js';
 import {
@@ -210,6 +217,9 @@ interface Cli {
   verifyDirectorySync?: boolean;
   directoryFeeds?: string[];
   auditQuorum: boolean;
+  auditDos?: boolean;
+  auditMultisig?: boolean;
+  crawlTopology?: boolean;
   auditDiversity?: boolean;
   followLinks: boolean;
   verifySep10: boolean;
@@ -237,6 +247,7 @@ interface Cli {
   webhookSlack?: string;
   webhookDiscord?: string;
   interactive?: boolean;
+  exploreRules?: boolean;
   checkContracts: boolean;
   sorobanRpc?: string;
   evmRpc?: string;
@@ -308,6 +319,9 @@ OPTIONS
                           or issuer (see PRESETS)
   -i, --interactive       Full-screen dashboard to walk the findings. Needs a TTY;
                           without one the text reporter is used instead
+      --explore-rules     Fuzzy-search every rule, read its description and spec
+                          link, and preview --off/--warn/--error overrides. In
+                          a non-terminal it prints the rule catalogue and exits
       --lsp               Run as a Language Server on stdio (diagnostics,
                           quick-fix code actions, and SEP-1 hover docs)
   -q, --quiet             Report errors only
@@ -330,6 +344,12 @@ OPTIONS
                           ([[VALIDATORS]].QUORUM_SET or CONFIG_URL-linked
                           stellar-core.cfg) for split-brain risk and fragile
                           thresholds
+      --audit-multisig    With --check-network: compute exact minimal signer
+                          coalitions for low, medium, and high thresholds
+      --audit-dos         With --check-network: run ten sequential overlay
+                          connection attempts and verify graceful backoff
+      --crawl-topology    With --check-network: crawl GET_PEERS and report
+                          validator paths longer than three overlay hops
       --audit-diversity   With --check-network: resolve validator hosts and flag
                           ASN or geographic concentration (>33% in one bucket).
                           Enrichment uses the JSON table in ANCHOR_GEO_LOOKUP
@@ -533,6 +553,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (cli.formatFile) return formatFiles(cli);
 
+  // The explorer is about rules, not about a file, so it runs before any path
+  // is read and needs no file argument.
+  if (cli.exploreRules) {
+    return runRuleExplorerCli(allRules, { stdin: process.stdin, stdout: process.stdout });
+  }
+
   // Readiness draws its own report, so it only has a text and a JSON form.
   if (cli.readiness && cli.format !== 'text' && cli.format !== 'json') {
     process.stderr.write(
@@ -617,6 +643,9 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.auditQuorum || cli.auditSecurity
               ? await auditQuorumSets(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.auditQuorum
+              ? await checkSplitBrain(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(cli.verifyDnssec
               ? await checkDnsIntegrity(domainResult.parsed, fetchImpl, {
                   rules,
@@ -640,6 +669,7 @@ async function main(argv: string[]): Promise<number> {
               : []),
             ...(await checkSigningKeyRevocation(domainResult.parsed, { rules, fetchImpl })),
             ...(await checkSigningKeyMultisig(domainResult.parsed, { rules, fetchImpl })),
+            ...(await checkMpcGovernance(domainResult.parsed, { rules, fetchImpl })),
             ...(await checkImmutabilityClaims(domainResult.parsed, fetchImpl, { rules })),
             ...(await checkCertificateTransparencyFromDocument(domainResult.parsed, {
               rules,
@@ -704,6 +734,18 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.crawlPeers && cli.mockFixtures === undefined
               ? await checkOverlayPeers(domainResult.parsed, { rules })
               : []),
+            ...(cli.crawlTopology && cli.mockFixtures === undefined
+              ? await checkOverlayTopology(domainResult.parsed, { rules })
+              : []),
+            ...(cli.auditDos && cli.mockFixtures === undefined
+              ? await checkOverlayDos(domainResult.parsed, { rules })
+              : []),
+            ...(cli.mockFixtures === undefined
+              ? await checkValidatorDnsDiscovery(domainResult.parsed, { rules })
+              : []),
+            ...(cli.auditMultisig
+              ? await checkThresholdOptimizer(domainResult.parsed, { rules, fetchImpl })
+              : []),
             ...(await checkNetworkConsistency(domainResult.parsed, fetchImpl, { rules })),
             // The handshake dials each peer directly, so a hermetic run skips it.
             ...(cli.verifyOverlay && cli.mockFixtures === undefined
@@ -714,6 +756,7 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.mockFixtures === undefined
               ? await checkCertExpiry(domainResult.parsed, { rules })
               : []),
+            ...(await checkHsts(domainResult.parsed, fetchImpl, { rules })),
             // The ALPN probe opens its own TLS socket for the same reason.
             ...(cli.mockFixtures === undefined
               ? await auditHttpVersions(domainResult.parsed, { rules, domain: cli.domain })
@@ -907,6 +950,12 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
+            if (cli.auditMultisig && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await checkThresholdOptimizer(fileResult.parsed, { rules, fetchImpl })),
+              );
+            }
+
             if (cli.verifySep6 && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await verifySep6Integration(fileResult.parsed, fetchImpl, { rules })),
@@ -1020,6 +1069,7 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.mockFixtures === undefined
                   ? await checkCertExpiry(fileResult.parsed, { rules })
                   : []),
+                ...(await checkHsts(fileResult.parsed, fetchImpl, { rules })),
                 // TLS ALPN probe, outside the fixture transport.
                 ...(cli.mockFixtures === undefined
                   ? await auditHttpVersions(fileResult.parsed, {
@@ -1059,11 +1109,15 @@ async function main(argv: string[]): Promise<number> {
                   : []),
                 ...(await checkHistoryPublish(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkArchiveDiff(fileResult.parsed, fetchImpl, { rules })),
+                ...(await checkMpcGovernance(fileResult.parsed, { rules, fetchImpl })),
                 ...(cli.verifyBuckets
                   ? await checkBucketIntegrity(fileResult.parsed, fetchImpl, { rules })
                   : []),
                 ...(cli.auditQuorum || cli.auditSecurity
                   ? await auditQuorumSets(fileResult.parsed, fetchImpl, { rules })
+                  : []),
+                ...(cli.auditQuorum
+                  ? await checkSplitBrain(fileResult.parsed, fetchImpl, { rules })
                   : []),
                 ...(cli.verifyDnssec
                   ? await checkDnsIntegrity(fileResult.parsed, fetchImpl, {
@@ -1086,6 +1140,15 @@ async function main(argv: string[]): Promise<number> {
                   : []),
                 ...(cli.crawlPeers && cli.mockFixtures === undefined
                   ? await checkOverlayPeers(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.crawlTopology && cli.mockFixtures === undefined
+                  ? await checkOverlayTopology(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.auditDos && cli.mockFixtures === undefined
+                  ? await checkOverlayDos(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.mockFixtures === undefined
+                  ? await checkValidatorDnsDiscovery(fileResult.parsed, { rules })
                   : []),
                 ...(await auditTomlContractEnvMeta(fileResult.parsed, fetchImpl, {
                   rules,
@@ -1835,6 +1898,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.interactive = true;
         break;
 
+      case '--explore-rules':
+        cli.exploreRules = true;
+        break;
+
       case '--no-suggestions':
         cli.noSuggestions = true;
         break;
@@ -1880,6 +1947,18 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--audit-quorum':
         cli.auditQuorum = true;
+        break;
+
+      case '--audit-multisig':
+        cli.auditMultisig = true;
+        break;
+
+      case '--audit-dos':
+        cli.auditDos = true;
+        break;
+
+      case '--crawl-topology':
+        cli.crawlTopology = true;
         break;
 
       case '--audit-diversity':
@@ -2521,30 +2600,36 @@ async function watchFiles(
   runLint: (cli: Cli, color: boolean) => Promise<number>,
 ) {
   await runLint(cli, color);
-
-  for (const path of paths) {
-    if (path === '-') continue; // can't watch stdin
-    let timer: NodeJS.Timeout | null = null;
-    try {
-      const watcher = watch(path, () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(async () => {
-          timer = null;
-          if (process.stdout.isTTY) process.stdout.write('\x1Bc');
-          await runLint(cli, color);
-        }, 100);
-      });
-      watcher.on('error', (error) => {
-        process.stderr.write(`Warning: Watcher error on ${path}: ${error.message}\n`);
-      });
-    } catch (error) {
-      const e = error as Error;
-      process.stderr.write(`Warning: Could not watch ${path}: ${e.message}\n`);
-    }
-  }
+  const watchState = await startSmartWatch(paths, {
+    runOffline: (changedPaths) =>
+      runLint(
+        {
+          ...cli,
+          paths: changedPaths,
+          checkNetwork: false,
+          checkContracts: false,
+          followLinks: false,
+        },
+        color,
+      ),
+    ...(cli.checkNetwork
+      ? { runNetwork: (changedPaths: string[]) => runLint({ ...cli, paths: changedPaths }, color) }
+      : {}),
+    onRun: (phase, changedPaths) => {
+      if (process.stdout.isTTY) process.stdout.write('\x1Bc');
+      process.stdout.write(`Watch mode: ${phase} checks for ${changedPaths.join(', ')}\n`);
+    },
+    onError: (path, error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`Warning: Watcher error on ${path}: ${detail}\n`);
+    },
+  });
 
   // Wait indefinitely, exit on SIGINT
   return new Promise<number>(() => {
-    process.on('SIGINT', () => process.exit(0));
+    process.on('SIGINT', () => {
+      watchState.close();
+      process.exit(0);
+    });
   });
 }

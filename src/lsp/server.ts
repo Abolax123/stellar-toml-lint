@@ -1,28 +1,35 @@
 /**
  * Language Server Protocol server over stdio — `stellar-toml-lint --lsp`.
  *
- * Speaks only what editors need to show diagnostics, offer #42 quick fixes, and
- * explain a field under the cursor: `initialize`, open/change/close sync,
- * `publishDiagnostics`, `textDocument/codeAction`, and `textDocument/hover`.
+ * Speaks only what editors need to show diagnostics, offer #42 quick fixes,
+ * explain a field under the cursor, and colour tokens by meaning: `initialize`,
+ * open/change/close sync, `publishDiagnostics`, `textDocument/codeAction`,
+ * `textDocument/hover`, and `textDocument/semanticTokens/full`.
  * Framing is the standard `Content-Length` header; payloads are UTF-8 JSON.
  * Deliberately no `vscode-languageserver` dependency (package.json freezes
  * runtime deps to two packages).
  */
 import process from 'node:process';
+import { createHash } from 'node:crypto';
 import { lint } from '../lint.js';
 import type { Diagnostic } from '../types.js';
 import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
 import type { LspCodeAction } from './code-actions.js';
+import { getCompletionItems } from './completion-provider.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
+import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
 import type {
   CodeActionParams,
+  CompletionParams,
   DidChangeTextDocumentParams,
   DidCloseTextDocumentParams,
   DidOpenTextDocumentParams,
   HoverParams,
   LspInitializeResult,
   RpcMessage,
+  SemanticTokens,
+  SemanticTokensParams,
 } from './protocol.js';
 import { RPC_INTERNAL_ERROR, RPC_METHOD_NOT_FOUND, SYNC_FULL } from './protocol.js';
 
@@ -34,8 +41,12 @@ export async function runLspServer(
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stdout,
 ): Promise<void> {
-  const documents = new Map<string, string>();
+  const documents = new Map<
+    string,
+    { text: string; resultId: string; diagnostics: Diagnostic[] }
+  >();
   let shuttingDown = false;
+  let clientSupportsDiagnosticPull = false;
 
   const send = (message: RpcMessage): void => {
     const body = Buffer.from(JSON.stringify(message), 'utf8');
@@ -54,16 +65,29 @@ export async function runLspServer(
     });
   };
 
+  const updateDocument = (uri: string, text: string): void => {
+    const diagnostics = lint(text).diagnostics;
+    const resultId = createHash('sha256').update(text).digest('hex');
+    documents.set(uri, { text, resultId, diagnostics });
+    if (!clientSupportsDiagnosticPull) publishDiagnostics(uri, diagnostics);
+  };
+
   const handleRequest = (message: RpcMessage): RpcMessage => {
     const id = message.id ?? null;
     try {
       switch (message.method) {
         case 'initialize': {
+          const params = message.params as {
+            capabilities?: { textDocument?: { diagnostic?: unknown } };
+          };
+          clientSupportsDiagnosticPull = params.capabilities?.textDocument?.diagnostic !== undefined;
           const result: LspInitializeResult = {
             capabilities: {
               textDocumentSync: { openClose: true, change: SYNC_FULL },
               codeActionProvider: { codeActionKinds: ['quickfix'] },
+              completionProvider: { resolveProvider: false, triggerCharacters: ['=', '.'] },
               hoverProvider: true,
+              semanticTokensProvider: { legend: SEMANTIC_TOKEN_LEGEND, full: true },
             },
             serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
           };
@@ -75,21 +99,29 @@ export async function runLspServer(
         }
         case 'textDocument/codeAction': {
           const params = message.params as CodeActionParams;
-          const source = documents.get(params.textDocument.uri);
-          if (source === undefined) return { jsonrpc: '2.0', id, result: [] };
+          const document = documents.get(params.textDocument.uri);
+          if (document === undefined) return { jsonrpc: '2.0', id, result: [] };
           const result: LspCodeAction[] = codeActionsFor(
-            source,
+            document.text,
             params.textDocument.uri,
-            lint(source).diagnostics,
+            document.diagnostics,
             params.range,
           );
           return { jsonrpc: '2.0', id, result };
         }
         case 'textDocument/hover': {
           const params = message.params as HoverParams;
+          const document = documents.get(params.textDocument.uri);
+          if (document === undefined) return { jsonrpc: '2.0', id, result: null };
+          const result: Hover | null = getHoverInfo(document.text, params.position);
+          return { jsonrpc: '2.0', id, result };
+        }
+        case 'textDocument/semanticTokens/full': {
+          const params = message.params as SemanticTokensParams;
           const source = documents.get(params.textDocument.uri);
-          if (source === undefined) return { jsonrpc: '2.0', id, result: null };
-          const result: Hover | null = getHoverInfo(source, params.position);
+          const result: SemanticTokens = {
+            data: source === undefined ? [] : computeSemanticTokens(source),
+          };
           return { jsonrpc: '2.0', id, result };
         }
         default:
@@ -124,16 +156,14 @@ export async function runLspServer(
         return true;
       case 'textDocument/didOpen': {
         const params = message.params as DidOpenTextDocumentParams;
-        documents.set(params.textDocument.uri, params.textDocument.text);
-        publishDiagnostics(params.textDocument.uri, lint(params.textDocument.text).diagnostics);
+        updateDocument(params.textDocument.uri, params.textDocument.text);
         return true;
       }
       case 'textDocument/didChange': {
         const params = message.params as DidChangeTextDocumentParams;
         const text = params.contentChanges[params.contentChanges.length - 1]?.text;
         if (text === undefined) return true;
-        documents.set(params.textDocument.uri, text);
-        publishDiagnostics(params.textDocument.uri, lint(text).diagnostics);
+        updateDocument(params.textDocument.uri, text);
         return true;
       }
       case 'textDocument/didClose': {

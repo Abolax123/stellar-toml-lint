@@ -34,6 +34,11 @@ const NODE_BUILTINS = [
     exports: ['connect', 'createConnection', 'Socket'],
   },
   {
+    module: /^node:dns\/promises$/,
+    message: 'System DNS resolution is not supported in browser environments.',
+    exports: ['resolveSrv', 'resolveTxt', 'resolveMx', 'lookup'],
+  },
+  {
     module: /^node:crypto$/,
     message: 'Node crypto is not supported in browser environments.',
     exports: [
@@ -71,7 +76,7 @@ const nodeShimPlugin = {
   name: 'node-builtins-shim',
   setup(build) {
     build.onResolve(
-      { filter: /^node:(tls|dns\/promises|net|crypto|buffer|zlib|fs|path|process)$/ },
+      { filter: /^node:(tls|net|dns\/promises|crypto|buffer|zlib|fs|path|process)$/ },
       (args) => ({
         path: args.path,
         namespace: 'node-shim',

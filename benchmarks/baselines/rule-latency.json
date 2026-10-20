@@ -537,9 +537,9 @@
       "units": 0.0001,
       "rmeFraction": 0.0032
     },
-    "security/dangling-cname-takeover-risk": {
+    "security/blocking-frame-ancestors-directive": {
       "units": 0,
-      "rmeFraction": 0.0028
+      "rmeFraction": 0.001
     },
     "security/dns-resolver-divergence": {
       "units": 0,
@@ -557,6 +557,10 @@
       "units": 0,
       "rmeFraction": 0.0019
     },
+    "security/insufficient-hsts-max-age": {
+      "units": 0,
+      "rmeFraction": 0.001
+    },
     "security/invalid-regex": {
       "units": 0,
       "rmeFraction": 0.0009
@@ -572,6 +576,14 @@
     "security/missing-on-chain-verification-proof": {
       "units": 0,
       "rmeFraction": 0.0037
+    },
+    "security/missing-clickjacking-protection": {
+      "units": 0,
+      "rmeFraction": 0.001
+    },
+    "security/missing-hsts-header": {
+      "units": 0,
+      "rmeFraction": 0.001
     },
     "security/on-chain-toml-hash-mismatch": {
       "units": 0,
@@ -1056,6 +1068,46 @@
     "network/unverified-bgp-announcement": {
       "units": 0,
       "rmeFraction": 0.0131
+    },
+    "validators/dns-srv-record-missing": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "validators/dns-srv-target-unreachable": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "security/useless-signer-detected": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "security/unintended-veto-key": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/unprotected-connection-churn": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/peer-socket-exhaustion": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/high-topological-distance": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "overlay/disconnected-peer-component": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "validators/partition-vulnerability": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "validators/critical-bridge-node": {
+      "units": 0,
+      "rmeFraction": 0
     }
   }
 }
