@@ -314,6 +314,34 @@ export {
 } from './history/bucket-auditor.js';
 export type { BucketAuditorOptions, BucketReference } from './history/bucket-auditor.js';
 export {
+  checkBucketStreams,
+  verifyBucketStreams,
+  auditBucketStreams,
+  validateBucketStream,
+  parseGzipHeader,
+  verifyGzipMember,
+  inflatePrefix,
+  decodeLeadingBucketEntries,
+  normalizeBucketReference,
+  sampleRandomBuckets,
+  crc32,
+  bucketStreamRules,
+  bucketStreamRuleIds,
+  CORRUPTED_BUCKET_GZIP_STREAM_RULE,
+  TRUNCATED_BUCKET_XDR_RULE,
+  HISTORY_CORRUPTED_BUCKET_GZIP_STREAM,
+  HISTORY_TRUNCATED_BUCKET_XDR,
+  DEFAULT_BUCKET_STREAM_SAMPLE_COUNT,
+  DEFAULT_BUCKET_RANGE_BYTES,
+  DEFAULT_FULL_VERIFY_MAX_BYTES,
+  DEFAULT_LEADING_ENTRIES,
+} from './history/bucket-stream-validator.js';
+export type {
+  BucketStreamOptions,
+  BucketStreamVerdict,
+  GzipHeaderResult,
+} from './history/bucket-stream-validator.js';
+export {
   checkQuorumIntersection,
   quorumSolverRules,
   quorumSolverRuleIds,

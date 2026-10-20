@@ -94,6 +94,7 @@ import { simulateClawback } from './security/clawback-simulator.js';
 import { checkHistoryPublish } from './history/publish-validator.js';
 import { checkArchiveDiff } from './history/archive-diff.js';
 import { checkBucketIntegrity } from './history/bucket-auditor.js';
+import { checkBucketStreams } from './history/bucket-stream-validator.js';
 import {
   auditQuorumSets,
   formatQuorumSummaryTable,
@@ -387,7 +388,9 @@ OPTIONS
       --crawl-peers       Discover overlay peers with GET_PEERS and check connectivity
       --verify-buckets    With --check-network: download a sample of the archive
                           buckets a validator publishes, verify each against the
-                          SHA-256 in its name, and decode its XDR entries
+                          SHA-256 in its name, and decode its XDR entries; also
+                          range-read random buckets to check gzip headers, CRC32
+                          trailers, and leading BucketEntry records
       --verify-overlay    With --check-network: complete the overlay TCP handshake
                           with each [[VALIDATORS]] HOST and check its network,
                           node ID, and protocol version
@@ -637,6 +640,9 @@ async function main(argv: string[]): Promise<number> {
             ...(await checkArchiveDiff(domainResult.parsed, fetchImpl, { rules })),
             ...(cli.verifyBuckets
               ? await checkBucketIntegrity(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyBuckets
+              ? await checkBucketStreams(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.auditQuorum || cli.auditSecurity
               ? await auditQuorumSets(domainResult.parsed, fetchImpl, { rules })
@@ -1097,6 +1103,9 @@ async function main(argv: string[]): Promise<number> {
                 ...(await checkMpcGovernance(fileResult.parsed, { rules, fetchImpl })),
                 ...(cli.verifyBuckets
                   ? await checkBucketIntegrity(fileResult.parsed, fetchImpl, { rules })
+                  : []),
+                ...(cli.verifyBuckets
+                  ? await checkBucketStreams(fileResult.parsed, fetchImpl, { rules })
                   : []),
                 ...(cli.auditQuorum || cli.auditSecurity
                   ? await auditQuorumSets(fileResult.parsed, fetchImpl, { rules })

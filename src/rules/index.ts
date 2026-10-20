@@ -35,6 +35,7 @@ import { cryptoAuditorRules } from '../overlay/crypto-auditor.js';
 import { historyPublishRules } from '../history/publish-validator.js';
 import { archiveDiffRules } from '../history/archive-diff.js';
 import { bucketAuditorRules } from '../history/bucket-auditor.js';
+import { bucketStreamRules } from '../history/bucket-stream-validator.js';
 import { quorumSolverRules } from '../validators/quorum-solver.js';
 import { quorumAuditRules } from '../validators/quorum.js';
 import { dnsIntegrityRules } from '../security/dns-integrity.js';
@@ -141,6 +142,7 @@ export const allRules: Rule[] = [
   ...historyPublishRules,
   ...archiveDiffRules,
   ...bucketAuditorRules,
+  ...bucketStreamRules,
   ...quorumSolverRules,
   ...quorumAuditRules,
   ...dnsIntegrityRules,
@@ -203,6 +205,7 @@ export {
   historyPublishRules,
   archiveDiffRules,
   bucketAuditorRules,
+  bucketStreamRules,
   quorumSolverRules,
   quorumAuditRules,
   dnsIntegrityRules,
