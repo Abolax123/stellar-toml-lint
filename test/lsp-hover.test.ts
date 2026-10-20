@@ -279,7 +279,9 @@ describe('textDocument/hover over stdio', () => {
   it('advertises hover and answers a hover request with the field docs', async () => {
     const server = startServer();
     try {
-      const init = await server.request(1, 'initialize', { capabilities: {} });
+      const init = await server.request(1, 'initialize', {
+        capabilities: { textDocument: { diagnostic: {} } },
+      });
       const capabilities = (init.result as { capabilities: Record<string, unknown> }).capabilities;
       expect(capabilities.hoverProvider).toBe(true);
 

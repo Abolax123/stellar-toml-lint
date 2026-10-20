@@ -7,7 +7,6 @@
  * dependency tree small enough to audit by eye.
  */
 import { readFile, writeFile } from 'node:fs/promises';
-import { watch } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { assertKnownRule, loadConfig } from './config.js';
@@ -135,6 +134,7 @@ import { runRuleExplorerCli } from './ui/rule-explorer.js';
 import { loadPolicy, validatePolicy, evaluatePolicy } from './policy/engine.js';
 import { createFixtureFetch } from './mock-fixtures.js';
 import { runLspServer } from './lsp/server.js';
+import { startSmartWatch } from './watcher/smart-watch.js';
 import { getTomlJsonSchema } from './schema.js';
 import { generateCompletion, isCompletionShell } from './completion.js';
 import {
@@ -748,6 +748,7 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.mockFixtures === undefined
               ? await checkCertExpiry(domainResult.parsed, { rules })
               : []),
+            ...(await checkHsts(domainResult.parsed, fetchImpl, { rules })),
             // The ALPN probe opens its own TLS socket for the same reason.
             ...(cli.mockFixtures === undefined
               ? await auditHttpVersions(domainResult.parsed, { rules, domain: cli.domain })
@@ -1053,6 +1054,7 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.mockFixtures === undefined
                   ? await checkCertExpiry(fileResult.parsed, { rules })
                   : []),
+                ...(await checkHsts(fileResult.parsed, fetchImpl, { rules })),
                 // TLS ALPN probe, outside the fixture transport.
                 ...(cli.mockFixtures === undefined
                   ? await auditHttpVersions(fileResult.parsed, {
@@ -2583,30 +2585,36 @@ async function watchFiles(
   runLint: (cli: Cli, color: boolean) => Promise<number>,
 ) {
   await runLint(cli, color);
-
-  for (const path of paths) {
-    if (path === '-') continue; // can't watch stdin
-    let timer: NodeJS.Timeout | null = null;
-    try {
-      const watcher = watch(path, () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(async () => {
-          timer = null;
-          if (process.stdout.isTTY) process.stdout.write('\x1Bc');
-          await runLint(cli, color);
-        }, 100);
-      });
-      watcher.on('error', (error) => {
-        process.stderr.write(`Warning: Watcher error on ${path}: ${error.message}\n`);
-      });
-    } catch (error) {
-      const e = error as Error;
-      process.stderr.write(`Warning: Could not watch ${path}: ${e.message}\n`);
-    }
-  }
+  const watchState = await startSmartWatch(paths, {
+    runOffline: (changedPaths) =>
+      runLint(
+        {
+          ...cli,
+          paths: changedPaths,
+          checkNetwork: false,
+          checkContracts: false,
+          followLinks: false,
+        },
+        color,
+      ),
+    ...(cli.checkNetwork
+      ? { runNetwork: (changedPaths: string[]) => runLint({ ...cli, paths: changedPaths }, color) }
+      : {}),
+    onRun: (phase, changedPaths) => {
+      if (process.stdout.isTTY) process.stdout.write('\x1Bc');
+      process.stdout.write(`Watch mode: ${phase} checks for ${changedPaths.join(', ')}\n`);
+    },
+    onError: (path, error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`Warning: Watcher error on ${path}: ${detail}\n`);
+    },
+  });
 
   // Wait indefinitely, exit on SIGINT
   return new Promise<number>(() => {
-    process.on('SIGINT', () => process.exit(0));
+    process.on('SIGINT', () => {
+      watchState.close();
+      process.exit(0);
+    });
   });
 }

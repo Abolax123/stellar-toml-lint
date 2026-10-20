@@ -149,6 +149,7 @@ export const allRules: Rule[] = [
   ...tlsPfsAuditorRules,
   ...bgpRouteDetectorRules,
   ...certExpiryRules,
+    ...hstsAuditorRules,
   ...ipv6AuditorRules,
   // `httpVersionAuditorRules` is folded into `generalRules` (see
   // src/rules/general.ts, where the issue wires it), so it is exported rather
