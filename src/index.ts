@@ -224,6 +224,36 @@ export {
   OVERLAY_MAC_BYTES,
   ENVELOPE_TYPE_AUTH,
 } from './overlay/handshake.js';
+export {
+  checkOverlayCipher,
+  verifyOverlayCipher,
+  verifyCipherSession,
+  cipherFindings,
+  deriveCipherKeys,
+  cipherNonce,
+  sealFrame,
+  openFrame,
+  encodePeerAddressRequest,
+  openSocketChannel,
+  overlayCipherRules,
+  overlayCipherRuleIds,
+  OVERLAY_CIPHER_NEGOTIATION_FAILED_RULE,
+  OVERLAY_MAC_TAG_MISMATCH_RULE,
+  CIPHER_NEGOTIATION_FAILED_RULE,
+  MAC_TAG_MISMATCH_RULE,
+  CHACHA20_POLY1305_KEY_BYTES,
+  CHACHA20_POLY1305_NONCE_BYTES,
+  POLY1305_TAG_BYTES,
+  SEALED_FRAME_HEADER_BYTES,
+} from './overlay/cipher-verifier.js';
+export type {
+  CipherChannel,
+  CipherChannelFactory,
+  CipherKeys,
+  CipherOutcome,
+  CipherVerifierOptions,
+  OpenedFrame,
+} from './overlay/cipher-verifier.js';
 export type {
   AnnouncedHello,
   EphemeralIdentity,

@@ -113,6 +113,7 @@ import { checkValidatorDiversityFromDocument } from './validators/geo-diversity.
 import { validateAnchorDiscovery } from './validators/anchorDiscovery.js';
 import { checkOverlayPeers } from './overlay/crawler.js';
 import { checkOverlayHandshake } from './overlay/handshake.js';
+import { checkOverlayCipher } from './overlay/index.js';
 import { checkOverlayDos } from './overlay/dos-tester.js';
 import { checkOverlayTopology } from './overlay/topology-analyzer.js';
 import { checkValidatorDnsDiscovery } from './validators/dns-discovery.js';
@@ -395,7 +396,9 @@ OPTIONS
                           SHA-256 in its name, and decode its XDR entries
       --verify-overlay    With --check-network: complete the overlay TCP handshake
                           with each [[VALIDATORS]] HOST and check its network,
-                          node ID, and protocol version
+                          node ID, and protocol version, then derive HKDF
+                          ChaCha20-Poly1305 session keys and verify one sealed
+                          frame exchange
       --verify-dnssec     Compare A/AAAA answers across DNSSEC-validating DoH resolvers
       --follow-links      Fetch and lint the toml pointers in CURRENCIES
                           (implied by --domain)
@@ -748,6 +751,9 @@ async function main(argv: string[]): Promise<number> {
             // The handshake dials each peer directly, so a hermetic run skips it.
             ...(cli.verifyOverlay && cli.mockFixtures === undefined
               ? await checkOverlayHandshake(domainResult.parsed, { rules })
+              : []),
+            ...(cli.verifyOverlay && cli.mockFixtures === undefined
+              ? await checkOverlayCipher(domainResult.parsed, { rules })
               : []),
             // A certificate probe opens its own socket rather than going
             // through the fixture transport, so hermetic runs skip it.
@@ -1179,6 +1185,9 @@ async function main(argv: string[]): Promise<number> {
                 // Dials each peer directly, outside the fixture transport.
                 ...(cli.verifyOverlay && cli.mockFixtures === undefined
                   ? await checkOverlayHandshake(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.verifyOverlay && cli.mockFixtures === undefined
+                  ? await checkOverlayCipher(fileResult.parsed, { rules })
                   : []),
                 // SDEX corridors, history archives, and bridge reserves all
                 // target the network the file declares.

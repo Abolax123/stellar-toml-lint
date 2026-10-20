@@ -31,6 +31,7 @@ import { sep6Rules } from '../cross-sep/sep6.js';
 import { corsPreflightRules } from '../network/cors-preflight.js';
 import { overlayCrawlerRules } from '../overlay/crawler-rules.js';
 import { overlayHandshakeRules } from '../overlay/handshake.js';
+import { overlayCipherRules } from '../overlay/cipher-verifier.js';
 import { cryptoAuditorRules } from '../overlay/crypto-auditor.js';
 import { historyPublishRules } from '../history/publish-validator.js';
 import { archiveDiffRules } from '../history/archive-diff.js';
@@ -135,6 +136,7 @@ export const allRules: Rule[] = [
   ...corsPreflightRules,
   ...overlayCrawlerRules,
   ...overlayHandshakeRules,
+  ...overlayCipherRules,
   ...overlayDosRules,
   ...topologyAnalyzerRules,
   ...cryptoAuditorRules,
@@ -199,6 +201,7 @@ export {
   corsPreflightRules,
   overlayCrawlerRules,
   overlayHandshakeRules,
+  overlayCipherRules,
   cryptoAuditorRules,
   historyPublishRules,
   archiveDiffRules,
