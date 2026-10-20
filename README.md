@@ -305,7 +305,7 @@ failure.
 | `--verify-sep24-quote-lock`        | Audit SEP-24 interactive deposit fee quote stability across session (requires `--check-network`)                                                                                                                |
 | `--verify-clawback`                | Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC (requires `--check-network`)                                                                                                               |
 | `--crawl-peers`                    | Discover validator peers with overlay `GET_PEERS` messages (requires `--check-network`)                                                                                                                         |
-| `--verify-buckets`                 | Download a sample of each archive's `currentBuckets`, verify the SHA-256 of the decompressed stream, and decode the XDR `BucketEntry` stream (requires `--check-network`)                                       |
+| `--verify-buckets`                 | Download a sample of each archive's `currentBuckets`, verify the SHA-256 of the decompressed stream, and decode the XDR `BucketEntry` stream; range-read random buckets to check gzip headers, CRC32 trailers, and leading records (requires `--check-network`) |
 | `--verify-overlay`                 | Complete the overlay TCP handshake with each `[[VALIDATORS]]` HOST and check its network, node ID, and protocol version, then verify an HKDF/ChaCha20-Poly1305 sealed frame exchange (requires `--check-network`) |
 | `--audit-quorum`                   | Solve `[[VALIDATORS]]` quorum sets for split-brain risk and BFT; also emits `validators/partition-vulnerability` and `validators/critical-bridge-node` (requires `--check-network`)                             |
 | `--audit-multisig`                 | Enumerate exact signer coalitions for low, medium, and high account thresholds (requires `--check-network`)                                                                                                     |
@@ -1918,6 +1918,20 @@ disagrees with the hash its file name encodes emits `history/bucket-hash-mismatc
 whose gzip stream cannot be read or whose bytes are not valid XDR emits `history/bucket-xdr-corrupted`
 (error) — the corruption that otherwise crashes catchup after the HAS itself passed. Unreachable
 archives and HAS files with no `currentBuckets` degrade to silence.
+
+**Bucket stream integrity** (also with `--check-network --verify-buckets`) — cloud storage fails
+quietly: a truncated multipart upload or a bit-rotted object keeps its name and its HTTP 200 while no
+longer being a gzip stream a catchup can read. For a random sample of each archive's non-empty
+buckets, the linter fetches the head of the file with an HTTP `Range` request and validates the gzip
+member header (magic bytes `1f 8b`, deflate method, reserved flags, `FEXTRA`/`FNAME`/`FCOMMENT`, and
+the `FHCRC` checksum when present). Buckets up to 8 MiB are then downloaded whole so the deflate body
+is inflated and the CRC32 and length in the gzip trailer are compared against the decompressed bytes;
+larger buckets are inflated from the prefix alone, which still catches a corrupt deflate block
+without downloading gigabytes. The leading `BucketEntry` records are then decoded — stellar-core
+writes them with XDR record marks, and unmarked streams are accepted too. A damaged header, deflate
+body, or trailer emits `history/corrupted-bucket-gzip-stream` (error); a stream that decompresses but
+whose records are cut short or undecodable emits `history/truncated-bucket-xdr` (error). Download
+failures are left to `history/bucket-download-failed`, so nothing is reported twice.
 
 **Quorum intersection audit** (with `--check-network --audit-quorum`) — the quorum sets declared by
 `[[VALIDATORS]].QUORUM_SET` — or, when absent, the `[QUORUM_SET]` stanzas of each validator's
