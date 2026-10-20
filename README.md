@@ -136,6 +136,7 @@ it was before.
 | `-d, --domain <d>`      | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks           |
 | `-f, --format <fmt>`    | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`, `sonar`        |
 | `--format-file`         | Rewrite files in place in canonical SEP-1 layout                                |
+| `--semantic-hash`       | Print a SHA-256 of each file's data, ignoring whitespace, comments, key order   |
 | `--strict`              | Treat warnings as errors                                                        |
 | `--max-warnings <n>`    | Fail if warnings exceed `n`                                                     |
 | `--check-network`       | Verify accounts, `HORIZON_URL`, `AUTH_SERVER`, and `ANCHOR_QUOTE_SERVER` online |
@@ -1154,6 +1155,37 @@ import { formatToml } from 'stellar-toml-lint';
 const result = formatToml(source);
 if (result.ok) await writeFile(path, result.output);
 else console.error(result.error);
+```
+
+### Semantic hash for change tracking
+
+`--semantic-hash` answers one question for auditors and CI: did this change alter what the file
+_says_, or only how it is written? It parses the file, drops every piece of formatting trivia —
+whitespace, comments, quoting style, key and table order, inline-table vs. dotted-key spelling — and
+prints the SHA-256 of a canonical JSON serialisation of the data that remains, in `sha256sum` layout.
+
+```console
+$ stellar-toml-lint --semantic-hash stellar.toml
+4f1c…e9a2  stellar.toml
+```
+
+Two files that declare the same data always hash the same; any semantic edit, however small, changes
+the hash. Integers, floats, strings, and dates stay distinct (`1`, `1.0`, `"1"` all hash
+differently). Invalid TOML has no semantic content, so it exits `2` with a positioned error.
+`--format json` prints the hash and the canonical form that was hashed.
+
+Pin an approved hash and fail a deployment when the data drifts:
+
+```sh
+current_hash=$(stellar-toml-lint --semantic-hash stellar.toml | cut -d' ' -f1)
+[ "$current_hash" = "$APPROVED_HASH" ] || { echo "stellar.toml changed semantically"; exit 1; }
+```
+
+```ts
+import { semanticHash } from 'stellar-toml-lint';
+
+const result = semanticHash(source);
+if (result.ok) console.log(result.hash);
 ```
 
 ### Diff mode for PR review

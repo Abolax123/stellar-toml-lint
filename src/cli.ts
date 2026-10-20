@@ -171,6 +171,7 @@ import { applyFixes } from './fix.js';
 import type { Diagnostic, LintResult, RuleOverrides, Severity } from './types.js';
 import { formatToml } from './format-file.js';
 import type { FormatResult } from './format-file.js';
+import { semanticHash } from './cst/semantic-hash.js';
 
 const VERSION = '0.1.0';
 const DEFAULT_PATH = 'stellar.toml';
@@ -196,6 +197,7 @@ interface Cli {
   domain?: string;
   format: Format;
   formatFile: boolean;
+  semanticHash: boolean;
   healthCheck?: boolean;
   strict: boolean;
   watch?: boolean;
@@ -292,6 +294,9 @@ USAGE
                                          Compare two versions for breaking changes
   cat stellar.toml | stellar-toml-lint - Lint stdin
   stellar-toml-lint --format-file <file> Rewrite the file in canonical SEP-1 layout
+  stellar-toml-lint --semantic-hash <file>
+                                         Print a SHA-256 of the file's data that
+                                         ignores whitespace, comments, and key order
 
 OPTIONS
   -d, --domain <domain>   Domain serving the file. Enables CORS, content-type,
@@ -550,6 +555,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (cli.formatFile) return formatFiles(cli);
+  if (cli.semanticHash) return printSemanticHashes(cli);
 
   // The explorer is about rules, not about a file, so it runs before any path
   // is read and needs no file argument.
@@ -1668,6 +1674,45 @@ async function formatFiles(cli: Cli): Promise<number> {
   return failed ? 2 : 0;
 }
 
+/**
+ * `--semantic-hash`: one `<sha256>  <name>` line per file, in the layout
+ * `sha256sum` uses, so a CI step can compare it against an approved value.
+ * `--format json` prints the hashes and canonical forms as one JSON array.
+ */
+async function printSemanticHashes(cli: Cli): Promise<number> {
+  if (cli.domain && cli.paths.length === 0) {
+    process.stderr.write('--semantic-hash hashes local files; pass a path or - for stdin.\n');
+    return 2;
+  }
+
+  const paths = cli.paths.length > 0 ? cli.paths : [DEFAULT_PATH];
+  const results: { file: string; hash: string; canonical: string }[] = [];
+  let failed = false;
+
+  for (const path of paths) {
+    const name = path === '-' ? 'stdin' : path;
+    try {
+      const source = path === '-' ? await readStdin() : await readFile(path, 'utf8');
+      const result = semanticHash(source);
+      if (!result.ok) {
+        const at =
+          result.line === undefined ? '' : ` at line ${result.line}, column ${result.column ?? 1}`;
+        process.stderr.write(`${name}${at}: ${result.error}\n`);
+        failed = true;
+        continue;
+      }
+      results.push({ file: name, hash: result.hash, canonical: result.canonical });
+      if (cli.format !== 'json') process.stdout.write(`${result.hash}  ${name}\n`);
+    } catch (error) {
+      process.stderr.write(`${message(error)}\n`);
+      failed = true;
+    }
+  }
+
+  if (cli.format === 'json') process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+  return failed ? 2 : 0;
+}
+
 function formatFailure(name: string, result: Extract<FormatResult, { ok: false }>): string {
   const at =
     result.line === undefined ? '' : ` at line ${result.line}, column ${result.column ?? 1}`;
@@ -1750,6 +1795,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     paths: [],
     format: 'text',
     formatFile: false,
+    semanticHash: false,
     strict: false,
     quiet: false,
     count: false,
@@ -1843,6 +1889,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--format-file':
         cli.formatFile = true;
+        break;
+
+      case '--semantic-hash':
+        cli.semanticHash = true;
         break;
 
       case '-f':
