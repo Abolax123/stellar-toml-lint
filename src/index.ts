@@ -571,6 +571,23 @@ export type {
 } from './soroban/storage-footprint.js';
 
 export {
+  estimateWasmBudget,
+  auditWasmBudget,
+  budgetEstimatorRules,
+  budgetEstimatorRuleIds,
+  EXCESSIVE_STATIC_MEMORY_PAGES_RULE,
+  HIGH_CYCLOMATIC_COMPLEXITY_RULE,
+  DEFAULT_MAX_MEMORY_PAGES,
+  DEFAULT_MAX_CYCLOMATIC_COMPLEXITY,
+  WASM_PAGE_SIZE,
+} from './soroban/budget-estimator.js';
+export type {
+  BudgetEstimatorOptions,
+  WasmBudgetEstimate,
+  WasmMemoryLimits,
+} from './soroban/budget-estimator.js';
+
+export {
   auditContractAuth,
   auditTomlContractAuth,
   verifyContractAuth,

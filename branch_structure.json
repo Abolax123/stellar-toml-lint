@@ -1,0 +1,24 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "feature/sep24-flow-validator",
+    "main",
+    "origin",
+    "solver/issue-287-87-a0",
+    "solver/issue-288-88-a2"
+  ],
+  "parent": {
+    "feature/sep24-flow-validator": "main",
+    "main": null,
+    "origin": "main",
+    "solver/issue-287-87-a0": "main",
+    "solver/issue-288-88-a2": "main"
+  },
+  "order": [
+    "main",
+    "feature/sep24-flow-validator",
+    "origin",
+    "solver/issue-287-87-a0",
+    "solver/issue-288-88-a2"
+  ]
+}

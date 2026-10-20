@@ -374,6 +374,8 @@ For every contract a file declares under `[[CURRENCIES]]`, on-chain audits run u
 | `soroban/excessive-resource-consumption`   | warning  | A simulated call uses more CPU or memory than the budget                                |
 | `soroban/ttl-expiring-soon`                | error    | A contract instance or code entry TTL expires within 30 days                            |
 | `soroban/high-storage-footprint`           | warning  | A contract's total storage footprint exceeds recommended limits                         |
+| `soroban/excessive-static-memory-pages`    | warning  | The WASM requests more than 10 minimum memory pages (640 KB)                            |
+| `soroban/high-cyclomatic-complexity`       | warning  | An exported SEP-41 function's cyclomatic complexity exceeds the limit                   |
 | `soroban/missing-auth-parameter`           | error    | A state-mutating contract function lacks an Address authorization parameter             |
 | `soroban/unsafe-unauthorized-mint`         | error    | An unparameterized or unauthorized mint function is exposed (SEP-42)                    |
 | `soroban/corrupted-instance-storage-entry` | error    | Contract instance storage contains malformed SCVal (admin not Address, decimal not U32) |

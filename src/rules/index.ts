@@ -64,6 +64,7 @@ import { eventRules } from '../soroban/events.js';
 import { adminAuditorRules } from '../soroban/admin-auditor.js';
 import { simulationRules } from '../soroban/simulation.js';
 import { storageFootprintRules } from '../soroban/storage-footprint.js';
+import { budgetEstimatorRules } from '../soroban/budget-estimator.js';
 import { authAuditorRules } from '../soroban/auth-auditor.js';
 import { instanceStorageAuditorRules } from '../soroban/instance-storage-auditor.js';
 import { insecureHttpRule } from './insecure-http.js';
@@ -116,6 +117,7 @@ export const allRules: Rule[] = [
   ...adminAuditorRules,
   ...simulationRules,
   ...storageFootprintRules,
+  ...budgetEstimatorRules,
   ...authAuditorRules,
   ...instanceStorageAuditorRules,
   ...sorobanErrorRules,
@@ -229,6 +231,7 @@ export {
   adminAuditorRules,
   simulationRules,
   storageFootprintRules,
+  budgetEstimatorRules,
   authAuditorRules,
   instanceStorageAuditorRules,
   insecureHttpRule,
