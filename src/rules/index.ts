@@ -9,6 +9,9 @@ import {
   collateralSigFormatRules,
   duplicateCurrencyRules,
 } from './currencies.js';
+import { corpHeaderRules } from '../security/corp-auditor.js';
+import { mpcGovernanceRules } from '../security/mpc-governance.js';
+import { hstsAuditorRules } from '../security/hsts-auditor.js';
 import { regulatedFlagRules } from './regulated-flags.js';
 import { validatorRules } from './validators.js';
 import { validatorDedupRules } from './validator-dedup.js';

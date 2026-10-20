@@ -15,13 +15,11 @@ import { lint } from '../lint.js';
 import type { Diagnostic } from '../types.js';
 import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
 import type { LspCodeAction } from './code-actions.js';
-import { getCompletionItems } from './completion-provider.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
 import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
 import type {
   CodeActionParams,
-  CompletionParams,
   DidChangeTextDocumentParams,
   DidCloseTextDocumentParams,
   DidOpenTextDocumentParams,
@@ -120,7 +118,7 @@ export async function runLspServer(
           const params = message.params as SemanticTokensParams;
           const source = documents.get(params.textDocument.uri);
           const result: SemanticTokens = {
-            data: source === undefined ? [] : computeSemanticTokens(source),
+            data: source === undefined ? [] : computeSemanticTokens(source.text),
           };
           return { jsonrpc: '2.0', id, result };
         }

@@ -20,6 +20,7 @@ import { auditHttpVersions } from './network/http-version-auditor.js';
 import { auditBgpRoutes } from './network/bgp-route-detector.js';
 import { checkRateLimitResilience } from './network/rate-limit-tester.js';
 import { horizonUrlFor } from './network-checks.js';
+import { checkHsts } from './security/hsts-auditor.js';
 import { checkSignatureStateMachineFromDocument } from './security/signature-state-machine.js';
 import { checkPeerPortReachability } from './validators/net-probe.js';
 import {
@@ -171,6 +172,7 @@ import { applyFixes } from './fix.js';
 import type { Diagnostic, LintResult, RuleOverrides, Severity } from './types.js';
 import { formatToml } from './format-file.js';
 import type { FormatResult } from './format-file.js';
+import { sortTablesCli } from './cst/table-sorter.js';
 
 const VERSION = '0.1.0';
 const DEFAULT_PATH = 'stellar.toml';
@@ -276,6 +278,7 @@ interface Cli {
   serveMock?: number;
   diff?: { base: string; target: string };
   readiness?: boolean;
+  sortTables?: boolean;
 }
 
 const USAGE = `stellar-toml-lint ${VERSION}
@@ -526,6 +529,7 @@ EXAMPLES
   stellar-toml-lint -f sarif > results.sarif
   stellar-toml-lint public/.well-known/stellar.toml --readiness
   stellar-toml-lint public/.well-known/stellar.toml --readiness -f json
+  stellar-toml-lint public/.well-known/stellar.toml --sort-tables
   stellar-toml-lint public/.well-known/stellar.toml --check-network \\\
   stellar-toml-lint --graph mermaid > diagram.mmd
   stellar-toml-lint --graph dot --graph-contracts > diagram.dot
@@ -563,6 +567,37 @@ async function main(argv: string[]): Promise<number> {
       `--readiness supports --format text or --format json; drop --format ${cli.format}.\n\nRun with --help for usage.\n`,
     );
     return 2;
+  }
+
+  if (cli.sortTables) {
+    // Handle --sort-tables: sort the tables in the given file(s)
+    for (const path of cli.paths) {
+      const source = path === '-' ? await readStdin() : await readFile(path, 'utf8');
+      const result = sortTablesCli(source, false, path);
+      process.stdout.write(result.sorted);
+    }
+    return 0;
+  }
+
+  if (cli.migrate) {
+    // Handle --migrate: run a code migration (sep41 or v2)
+    for (const path of cli.paths) {
+      const source = path === '-' ? await readStdin() : await readFile(path, 'utf8');
+      const migration = await runMigration(source, cli.migrate as 'sep41' | 'v2');
+      if (migration.result.applied) {
+        process.stdout.write(migration.result.diff);
+      } else {
+        // Report conflicts or no changes
+        for (const diag of migration.diagnostics) {
+          const severity = diag.severity === 'error' ? 'error' : diag.severity === 'warning' ? 'warning' : 'info';
+          process.stderr.write(`[${severity === 'error' ? '1' : '2'}m[codemod] [0m${diag.message}\n`);
+        }
+        if (migration.result.conflicts.length > 0) {
+          process.exit(1);
+        }
+      }
+    }
+    return 0;
   }
 
   const color = cli.color ?? shouldUseColor();
