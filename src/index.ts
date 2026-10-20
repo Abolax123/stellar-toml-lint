@@ -12,6 +12,13 @@
 export { lint, lintDomain } from './lint.js';
 export { formatToml } from './format-file.js';
 export type { FormatResult } from './format-file.js';
+export {
+  semanticHash,
+  semanticallyEqual,
+  canonicalize,
+  hashCanonical,
+} from './cst/semantic-hash.js';
+export type { SemanticHashResult } from './cst/semantic-hash.js';
 export { lspMain } from './lsp.js';
 export {
   parseCst,
