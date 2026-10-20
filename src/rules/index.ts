@@ -37,6 +37,7 @@ import { historyPublishRules } from '../history/publish-validator.js';
 import { archiveDiffRules } from '../history/archive-diff.js';
 import { bucketAuditorRules } from '../history/bucket-auditor.js';
 import { bucketStreamRules } from '../history/bucket-stream-validator.js';
+import { gapAuditorRules } from '../history/gap-auditor.js';
 import { quorumSolverRules } from '../validators/quorum-solver.js';
 import { quorumAuditRules } from '../validators/quorum.js';
 import { dnsIntegrityRules } from '../security/dns-integrity.js';
@@ -145,6 +146,7 @@ export const allRules: Rule[] = [
   ...archiveDiffRules,
   ...bucketAuditorRules,
   ...bucketStreamRules,
+  ...gapAuditorRules,
   ...quorumSolverRules,
   ...quorumAuditRules,
   ...dnsIntegrityRules,
@@ -209,6 +211,7 @@ export {
   archiveDiffRules,
   bucketAuditorRules,
   bucketStreamRules,
+  gapAuditorRules,
   quorumSolverRules,
   quorumAuditRules,
   dnsIntegrityRules,

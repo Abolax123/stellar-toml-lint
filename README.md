@@ -306,6 +306,7 @@ failure.
 | `--verify-clawback`                | Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC (requires `--check-network`)                                                                                                               |
 | `--crawl-peers`                    | Discover validator peers with overlay `GET_PEERS` messages (requires `--check-network`)                                                                                                                         |
 | `--verify-buckets`                 | Download a sample of each archive's `currentBuckets`, verify the SHA-256 of the decompressed stream, and decode the XDR `BucketEntry` stream; range-read random buckets to check gzip headers, CRC32 trailers, and leading records (requires `--check-network`) |
+| `--verify-history-gaps`            | Confirm every 64-ledger checkpoint across the last 10,000 archived ledgers is downloadable; missing runs emit `history/ledger-sequence-gap-detected` (requires `--check-network`)                               |
 | `--verify-overlay`                 | Complete the overlay TCP handshake with each `[[VALIDATORS]]` HOST and check its network, node ID, and protocol version, then verify an HKDF/ChaCha20-Poly1305 sealed frame exchange (requires `--check-network`) |
 | `--audit-quorum`                   | Solve `[[VALIDATORS]]` quorum sets for split-brain risk and BFT; also emits `validators/partition-vulnerability` and `validators/critical-bridge-node` (requires `--check-network`)                             |
 | `--audit-multisig`                 | Enumerate exact signer coalitions for low, medium, and high account thresholds (requires `--check-network`)                                                                                                     |
@@ -1932,6 +1933,18 @@ writes them with XDR record marks, and unmarked streams are accepted too. A dama
 body, or trailer emits `history/corrupted-bucket-gzip-stream` (error); a stream that decompresses but
 whose records are cut short or undecodable emits `history/truncated-bucket-xdr` (error). Download
 failures are left to `history/bucket-download-failed`, so nothing is reported twice.
+
+**Ledger sequence gap audit** (with `--check-network --verify-history-gaps`) — a validator that
+falls behind recovers by replaying every checkpoint between its last closed ledger and the network's,
+and stellar-core publishes one checkpoint per 64 ledgers (63, 127, 191, …). One skipped publish
+leaves a hole a catchup cannot step over. This audit reads `currentLedger` from each `HISTORY`
+archive's `.well-known/stellar-history.json`, then probes the `ledger/xx/yy/zz/ledger-<hex>.xdr.gz`
+file of every checkpoint across the last 10,000 ledgers (a `HEAD`, falling back to a one-byte ranged
+`GET` for object stores that refuse it). Each run of consecutive missing checkpoints emits one
+`history/ledger-sequence-gap-detected` (error) naming the ledger range and the first missing file.
+An archive whose root state cannot be read degrades to silence. The range, the per-checkpoint
+categories (`history`, `ledger`, `transactions`, `results`, `scp`), and the probe concurrency are
+options of the programmatic `checkHistoryGaps`.
 
 **Quorum intersection audit** (with `--check-network --audit-quorum`) — the quorum sets declared by
 `[[VALIDATORS]].QUORUM_SET` — or, when absent, the `[QUORUM_SET]` stanzas of each validator's
