@@ -2894,6 +2894,29 @@ Creates interactive Check Runs with inline code suggestions.
 
 See [integrations/github-app/](integrations/github-app/) for details.
 
+### GitHub Actions review suggestions
+
+Pass `--report-pr-review` in a pull-request workflow with `GITHUB_TOKEN` granted
+`pull-requests: write`. Diagnostics with safe autofixes are submitted as inline
+GitHub suggestion blocks; diagnostics without a mechanical fix are not posted.
+The existing exit code remains based on lint findings if GitHub review delivery
+fails.
+
+### GitOps admission webhook
+
+The Kubernetes webhook validates AdmissionReview requests before anchor
+configuration is applied. It is suitable for an Argo CD PreSync validation Job
+or as an API-server validating webhook protecting Flux-managed ConfigMaps.
+Deployment and certificate registration examples are in
+[`integrations/gitops/`](./integrations/gitops/).
+
+The origin exposure check is included with `--check-network --audit-security`.
+It checks MX/SPF and common sibling hostnames, then warns only when a candidate
+IP directly serves recognizable `stellar.toml` content outside the service
+DNS. The optional DNSSEC check retrieves DNS wire responses over HTTPS and
+independently verifies signatures and DS links against IANA root trust anchors.
+Expired RRSIGs receive a distinct error rule.
+
 ### Sublime Text LSP Package
 
 Official Sublime Text LSP helper package providing diagnostics, completions, and hover documentation.

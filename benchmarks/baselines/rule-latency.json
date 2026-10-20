@@ -569,6 +569,10 @@
       "units": 0,
       "rmeFraction": 0.0026
     },
+    "security/expired-rrsig-signature": {
+      "units": 0,
+      "rmeFraction": 0.0499
+    },
     "security/false-immutability-claim": {
       "units": 0,
       "rmeFraction": 0.0031
@@ -616,6 +620,10 @@
     "security/on-chain-toml-hash-mismatch": {
       "units": 0,
       "rmeFraction": 0.0008
+    },
+    "security/origin-ip-exposed": {
+      "units": 0,
+      "rmeFraction": 0.0125
     },
     "security/redos-vulnerable-regex": {
       "units": 0,
