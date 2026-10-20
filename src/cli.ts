@@ -78,6 +78,7 @@ import { checkTokenBinding } from './security/token-binding.js';
 import { verifySep6Integration } from './protocols/sep6.js';
 import { verifySep31 } from './protocols/sep31.js';
 import { verifySep31Webhooks } from './protocols/sep31-webhook-verifier.js';
+import { validateSep31KycMatrix } from './protocols/sep31-kyc-matrix.js';
 import { verifySep8 } from './protocols/sep8.js';
 import { verifySep8Webhook } from './sep8/webhookCoordinator.js';
 import { verifySep38 } from './protocols/sep38.js';
@@ -88,6 +89,7 @@ import { verifySep24 } from './protocols/sep24.js';
 import { verifySep12 } from './protocols/sep12.js';
 import { verifySep12Deletion } from './protocols/sep12-deletion.js';
 import { verifySep30 } from './protocols/sep30.js';
+import { coordinateSep30Recovery } from './protocols/sep30-coordinator.js';
 import { verifySep24QuoteLock } from './protocols/sep24-quote-lock.js';
 import { checkCollateralGovernance } from './security/collateral-governance.js';
 import { simulateClawback } from './security/clawback-simulator.js';
@@ -388,6 +390,7 @@ OPTIONS
       --verify-sep12      Audit SEP-12 KYC customer verification against the KYC server
       --verify-sep12-deletion
                           Verify SEP-12 DELETE /customer endpoint (GDPR right-to-be-forgotten)
+      --verify-sep30      Coordinate multi-party recovery signing and verify threshold compliance
       --verify-sep24-quote-lock
                           Audit SEP-24 interactive deposit fee quote stability across session
       --verify-clawback   Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC
@@ -714,13 +717,20 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifySep31
               ? await verifySep31(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.verifySep31 ||
+            (cli.checkNetwork && domainResult.parsed?.DIRECT_PAYMENT_SERVER !== undefined)
+              ? await validateSep31KycMatrix(domainResult.parsed, fetchImpl, { rules })
+              : []),
             // The webhook listener opens a local socket and waits for a real
             // callback, so a hermetic fixture run skips it.
             ...(cli.verifySep31 && cli.mockFixtures === undefined
               ? await verifySep31Webhooks(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.verifySep30 && domainResult.parsed?.RECOVERY_SERVER !== undefined
-              ? await verifySep30(domainResult.parsed, fetchImpl, { rules })
+              ? [
+                  ...(await verifySep30(domainResult.parsed, fetchImpl, { rules })),
+                  ...(await coordinateSep30Recovery(domainResult.parsed, fetchImpl, { rules })),
+                ]
               : []),
             ...(cli.verifySep8 ? await verifySep8(domainResult.parsed, fetchImpl, { rules }) : []),
             ...(cli.verifySep8Webhook
@@ -974,14 +984,22 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
-            if (cli.verifySep31 && cli.checkNetwork) {
+            if (
+              (cli.verifySep31 || cli.checkNetwork) &&
+              fileResult.parsed?.DIRECT_PAYMENT_SERVER !== undefined
+            ) {
+              if (cli.verifySep31) {
+                networkDiagnostics.push(
+                  ...(await verifySep31(fileResult.parsed, fetchImpl, { rules })),
+                  // Opens a loopback listener for the callback, so hermetic
+                  // fixture runs skip it.
+                  ...(cli.mockFixtures === undefined
+                    ? await verifySep31Webhooks(fileResult.parsed, fetchImpl, { rules })
+                    : []),
+                );
+              }
               networkDiagnostics.push(
-                ...(await verifySep31(fileResult.parsed, fetchImpl, { rules })),
-                // Opens a loopback listener for the callback, so hermetic
-                // fixture runs skip it.
-                ...(cli.mockFixtures === undefined
-                  ? await verifySep31Webhooks(fileResult.parsed, fetchImpl, { rules })
-                  : []),
+                ...(await validateSep31KycMatrix(fileResult.parsed, fetchImpl, { rules })),
               );
             }
 
@@ -992,6 +1010,7 @@ async function main(argv: string[]): Promise<number> {
             ) {
               networkDiagnostics.push(
                 ...(await verifySep30(fileResult.parsed, fetchImpl, { rules })),
+                ...(await coordinateSep30Recovery(fileResult.parsed, fetchImpl, { rules })),
               );
             }
 

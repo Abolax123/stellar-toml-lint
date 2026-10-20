@@ -2227,6 +2227,8 @@ rules (`sep6/fee-calculation-mismatch`, warning), and validates transaction stat
 KYC requirements (`sep31/missing-kyc-requirements`, error), and cross-references SEP-31 supported assets against
 `stellar.toml` `[[CURRENCIES]]` (`sep31/asset-unsupported`, warning).
 
+**SEP-31 sender and receiver KYC requirement matrix validator and schema generator** (with `--check-network` or `--verify-sep31`) — Queries `DIRECT_PAYMENT_SERVER/info`, audits `fields.transaction`, `fields.sender`, and `fields.receiver`, verifies that required fields conform to the SEP-9 financial client standard (`sep31/invalid-kyc-field-definition`, error), flags missing sender KYC declarations (`sep31/missing-sender-kyc-declaration`, warning), and exports validated JSON Schema (Draft 2020-12) definitions of required payment parameters for client wallets.
+
 **SEP-31 webhook delivery and HMAC verifier** (with `--check-network --verify-sep31`) — Starts an ephemeral loopback
 webhook listener, creates a synthetic transaction against `DIRECT_PAYMENT_SERVER` pointing its callback at the
 listener, and waits for the anchor's asynchronous KYC/status callback. A callback that never arrives before the
@@ -2235,6 +2237,13 @@ timeout emits `sep31/webhook-delivery-timeout` (warning), one without a well-for
 carries no `type`/valid SEP-31 `status` emits `sep31/webhook-payload-invalid` (warning). Auth-gated anchors that
 never create the test transaction stay silent. Set a shared secret out of band to have the digest recomputed and
 compared in constant time instead of only shape-checked.
+
+**SEP-30 multi-party recovery server threshold signature coordinator** (with `--check-network --verify-sep30`) — Connects
+to declared `RECOVERY_SERVER` endpoints, registers test recovery identities on recovery servers, generates a test
+transaction envelope with low-threshold operations (`bumpSequence`), coordinates mock recovery signing requests,
+cryptographically verifies returned Ed25519 signatures, and asserts that combined signatures satisfy the required
+account threshold. Emits `sep30/insufficient-recovery-signatures` (error) when combined signature weight is below
+threshold, and `sep30/signature-coordination-timeout` (warning) when coordination times out.
 
 **SEP-8 dynamic compliance approval server simulation engine** (with `--check-network --verify-sep8`) — Generates
 synthetic payment transaction envelopes for regulated assets declared with `approval_server` or `regulated = true`,

@@ -61,6 +61,9 @@ import { sep7Rules } from '../protocols/sep7.js';
 import { sep6IntegrationRules } from '../protocols/sep6.js';
 import { sep31Rules } from '../protocols/sep31.js';
 import { sep31WebhookRules } from '../protocols/sep31-webhook-verifier.js';
+import { sep31KycRules } from '../protocols/sep31-kyc-matrix.js';
+import { sep30Rules } from '../protocols/sep30.js';
+import { sep30CoordinatorRules } from '../protocols/sep30-coordinator.js';
 import { sep8Rules } from '../protocols/sep8.js';
 import { sep38QuoteRules } from '../protocols/sep38.js';
 import { sep24Rules } from '../protocols/sep24.js';
@@ -131,8 +134,11 @@ export const allRules: Rule[] = [
   ...sep12Rules,
   ...sep6Rules,
   ...sep6IntegrationRules,
+  ...sep30Rules,
+  ...sep30CoordinatorRules,
   ...sep31Rules,
   ...sep31WebhookRules,
+  ...sep31KycRules,
   ...sep8Rules,
   ...sep8WebhookRules,
   ...sep38QuoteRules,
@@ -230,8 +236,11 @@ export {
   testnetContractRules,
   sep7Rules,
   sep6IntegrationRules,
+  sep30Rules,
+  sep30CoordinatorRules,
   sep31Rules,
   sep31WebhookRules,
+  sep31KycRules,
   sep8Rules,
   sep38QuoteRules,
   sep24Rules,
@@ -252,4 +261,7 @@ export {
   bridgeReserveRules,
   corridorRoutingRules,
   redosDetectorRules,
+  corpHeaderRules,
+  mpcGovernanceRules,
+  hstsAuditorRules,
 };

@@ -1032,3 +1032,29 @@ export type { JsonLdNode, JsonLdValidation } from './generators/jsonld.js';
 
 export { MonitorDaemon } from './monitor/daemon.js';
 export type { DiffResult, MonitorDaemonOptions, PollSample } from './monitor/daemon.js';
+
+export {
+  coordinateSep30Recovery,
+  extractRecoveryServers,
+  sep30CoordinatorRules,
+  sep30CoordinatorRuleIds,
+  INSUFFICIENT_RECOVERY_SIGNATURES_RULE,
+  SIGNATURE_COORDINATION_TIMEOUT_RULE,
+} from './protocols/sep30-coordinator.js';
+export type { Sep30CoordinatorOptions } from './protocols/sep30-coordinator.js';
+
+export {
+  validateSep31KycMatrix,
+  generateSep31PaymentJsonSchema,
+  generateSep31ClientSchemas,
+  sep31KycRules,
+  sep31KycRuleIds,
+  INVALID_KYC_FIELD_DEFINITION_RULE,
+  MISSING_SENDER_KYC_DECLARATION_RULE,
+} from './protocols/sep31-kyc-matrix.js';
+export type {
+  Sep31FieldDefinition,
+  Sep31AssetFields,
+  Sep31AssetInfo,
+  Sep31KycMatrixOptions,
+} from './protocols/sep31-kyc-matrix.js';

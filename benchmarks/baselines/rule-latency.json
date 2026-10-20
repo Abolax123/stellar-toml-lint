@@ -1140,6 +1140,34 @@
     "security/missing-opener-policy": {
       "units": 0,
       "rmeFraction": 0.0378
+    },
+    "sep30/server-unreachable": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "sep30/invalid-signer-response": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "sep30/identity-schema-mismatch": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "sep30/insufficient-recovery-signatures": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "sep30/signature-coordination-timeout": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "sep31/invalid-kyc-field-definition": {
+      "units": 0,
+      "rmeFraction": 0
+    },
+    "sep31/missing-sender-kyc-declaration": {
+      "units": 0,
+      "rmeFraction": 0
     }
   }
 }

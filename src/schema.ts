@@ -205,6 +205,12 @@ export function getTomlJsonSchema(): Record<string, unknown> {
       KYC_SERVER: httpsUrlField('SEP-12 KYC endpoint.'),
       DIRECT_PAYMENT_SERVER: httpsUrlField('SEP-31 direct payment server endpoint.'),
       ANCHOR_QUOTE_SERVER: httpsUrlField('SEP-38 anchor quote server endpoint.'),
+      RECOVERY_SERVER: httpsUrlField('SEP-30 recovery server endpoint.'),
+      RECOVERY_SERVERS: {
+        type: 'array',
+        description: 'Declared SEP-30 multi-party recovery server endpoints.',
+        items: httpsUrlField('SEP-30 recovery server endpoint.'),
+      },
       SIGNING_KEY: accountIdField('Stellar account used for SEP-10 challenge signatures.'),
       MPC_GOVERNANCE: {
         type: 'object',

@@ -105,6 +105,7 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--verify-sep10', description: 'Verify SEP-10 nonce replay resistance' },
   { long: '--audit-security', description: 'Audit token binding, TLS, and CAA security' },
   { long: '--verify-sep6', description: 'Run SEP-6 programmatic integration tester' },
+  { long: '--verify-sep30', description: 'Coordinate multi-party recovery signing' },
   { long: '--verify-sep31', description: 'Audit SEP-31 cross-border payment lifecycle' },
   { long: '--verify-sep38', description: 'Audit SEP-38 quotes, spreads, and expirations' },
   { long: '--crawl-peers', description: 'Discover and audit overlay peers' },

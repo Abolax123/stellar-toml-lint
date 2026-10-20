@@ -117,6 +117,8 @@ export const KNOWN_GLOBAL_FIELDS = new Set<string>([
   ...GLOBAL_FIELDS,
   ...Object.keys(DEPRECATED_FIELDS),
   'MPC_GOVERNANCE',
+  'RECOVERY_SERVER',
+  'RECOVERY_SERVERS',
   // Tables, handled by their own rule sets.
   'DOCUMENTATION',
   'PRINCIPALS',
@@ -458,6 +460,20 @@ export const FIELD_DOCS: readonly FieldDoc[] = [
     name: 'ANCHOR_QUOTE_SERVER',
     type: 'url (`https://`)',
     description: 'The server used for receiving SEP-38 requests.',
+    anchor: 'general-information',
+  },
+  {
+    section: '',
+    name: 'RECOVERY_SERVER',
+    type: 'url (`https://`)',
+    description: 'The endpoint for SEP-30 multi-party recovery servers.',
+    anchor: 'general-information',
+  },
+  {
+    section: '',
+    name: 'RECOVERY_SERVERS',
+    type: 'list of `https://` URLs',
+    description: 'Declared SEP-30 multi-party recovery server endpoints.',
     anchor: 'general-information',
   },
 
