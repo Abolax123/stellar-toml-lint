@@ -14,11 +14,13 @@ import { lint } from '../lint.js';
 import type { Diagnostic } from '../types.js';
 import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
 import type { LspCodeAction } from './code-actions.js';
+import { getCompletionItems } from './completion-provider.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
 import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
 import type {
   CodeActionParams,
+  CompletionParams,
   DidChangeTextDocumentParams,
   DidCloseTextDocumentParams,
   DidOpenTextDocumentParams,
@@ -67,6 +69,7 @@ export async function runLspServer(
             capabilities: {
               textDocumentSync: { openClose: true, change: SYNC_FULL },
               codeActionProvider: { codeActionKinds: ['quickfix'] },
+              completionProvider: { resolveProvider: false, triggerCharacters: ['=', '.'] },
               hoverProvider: true,
               semanticTokensProvider: { legend: SEMANTIC_TOKEN_LEGEND, full: true },
             },

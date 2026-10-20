@@ -96,6 +96,8 @@ export const allRules: Rule[] = [
   ...historyArchiveRules,
   ...securityRules,
   ...multisigRules,
+  ...corpHeaderRules,
+  ...mpcGovernanceRules,
 
   emailMxRule,
 
