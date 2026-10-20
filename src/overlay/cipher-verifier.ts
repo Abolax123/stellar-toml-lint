@@ -44,8 +44,6 @@
 import { xdr } from '@stellar/stellar-base';
 import { expand } from '@noble/hashes/hkdf';
 import { sha256 } from '@noble/hashes/sha2';
-import type * as NodeCrypto from 'node:crypto';
-import type * as NodeNet from 'node:net';
 import type { Diagnostic, Rule, RuleOverrides, Severity } from '../types.js';
 import { isString } from '../predicates.js';
 import { OVERLAY_MAX_FRAME_BYTES } from './crawler.js';
@@ -195,7 +193,9 @@ function sealedHeader(sequence: bigint): Buffer {
 }
 
 /** Loaded lazily so browser bundles never pull in `node:crypto`. */
-async function nodeCrypto(): Promise<typeof NodeCrypto> {
+// The return type is inferred: a static `node:` type import would put the
+// built-in in the browser graph's import scan.
+async function nodeCrypto() {
   return import('node:crypto');
 }
 
@@ -444,7 +444,7 @@ export async function openSocketChannel(
   endpoint: ValidatorEndpoint,
   options: { timeoutMs: number },
 ): Promise<CipherChannel> {
-  const { createConnection } = (await import('node:net')) as typeof NodeNet;
+  const { createConnection } = await import('node:net');
   const socket = createConnection({ host: endpoint.host, port: endpoint.port });
   socket.setNoDelay(true);
 

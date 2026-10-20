@@ -80,11 +80,12 @@ function archive(
     const range = new Headers(init?.headers).get('range');
     if (range !== null) ranges.push(range);
     const match = /bytes=(\d+)-(\d+)/.exec(range ?? '');
-    if (options.ignoreRange || match === null) return new Response(file, { status: 200 });
+    if (options.ignoreRange || match === null)
+      return new Response(new Uint8Array(file), { status: 200 });
     const start = Number(match[1]);
     if (start >= file.length) return new Response(null, { status: 416 });
     const end = Math.min(Number(match[2]), file.length - 1);
-    return new Response(file.subarray(start, end + 1), {
+    return new Response(new Uint8Array(file.subarray(start, end + 1)), {
       status: 206,
       headers: { 'Content-Range': `bytes ${start}-${end}/${file.length}` },
     });

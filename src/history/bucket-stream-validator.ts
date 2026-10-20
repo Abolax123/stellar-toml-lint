@@ -1,5 +1,4 @@
 import { cereal, xdr } from '@stellar/stellar-base';
-import type * as NodeZlib from 'node:zlib';
 import type { Diagnostic, Rule, RuleOverrides, Severity } from '../types.js';
 import { specUrl } from '../spec.js';
 import { bucketPathFor, bucketReferences, type BucketReference } from './bucket-auditor.js';
@@ -211,7 +210,9 @@ export function parseGzipHeader(bytes: Uint8Array): GzipHeaderResult {
 }
 
 /** Loaded lazily so browser bundles never pull in `node:zlib`. */
-async function zlib(): Promise<typeof NodeZlib> {
+// The return type is inferred: a static `node:` type import would put the
+// built-in in the browser graph's import scan.
+async function zlib() {
   return import('node:zlib');
 }
 
