@@ -93,6 +93,8 @@ import { verifySep12Deletion } from './protocols/sep12-deletion.js';
 import { verifySep30 } from './protocols/sep30.js';
 import { coordinateSep30Recovery } from './protocols/sep30-coordinator.js';
 import { verifySep24QuoteLock } from './protocols/sep24-quote-lock.js';
+import { simulateSep24Lifecycle } from './protocols/sep24-lifecycle.js';
+import { auditMultiTenantRouting } from './network/multi-tenant.js';
 import { checkCollateralGovernance } from './security/collateral-governance.js';
 import { simulateClawback } from './security/clawback-simulator.js';
 import { simulateTrustlineFreezing } from './security/trustline-simulator.js';
@@ -108,6 +110,9 @@ import {
 } from './validators/quorum.js';
 import { checkSplitBrain } from './validators/split-brain-solver.js';
 import { checkDnsIntegrity } from './security/dns-integrity.js';
+import { verifyDnssecChain } from './security/dnssec-chain-node.js';
+import { auditOriginExposure } from './security/origin-leak-detector.js';
+import { submitPullRequestReview, type PullRequestReviewSource } from './reporters/pr-reviewer.js';
 import { checkHsts } from './security/hsts-auditor.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
 import { checkSigningKeyRevocation } from './security/key-revocation.js';
@@ -177,8 +182,9 @@ import {
   runMigration,
   dryRun as dryRunMigration,
   generateDiff,
+  upgradeFederationDeclaration,
   type MigrationTarget,
-} from './codemod/migrate.js';
+} from './codemod/index.js';
 import { applyFixes } from './fix.js';
 import type { Diagnostic, LintResult, RuleOverrides, Severity } from './types.js';
 import { formatToml } from './format-file.js';
@@ -231,6 +237,7 @@ interface Cli {
   expectedAsns?: string[];
   verifyDirectorySync?: boolean;
   directoryFeeds?: string[];
+  tenantHosts?: string[];
   auditQuorum: boolean;
   auditDos?: boolean;
   auditMultisig?: boolean;
@@ -249,6 +256,7 @@ interface Cli {
   verifySep12Deletion?: boolean;
   verifySep30?: boolean;
   verifySep24QuoteLock?: boolean;
+  simulateSep24?: boolean;
   verifyClawback?: boolean;
   verifySep8Webhook?: boolean;
   verifyIpfs?: boolean;
@@ -292,6 +300,8 @@ interface Cli {
   slaStore?: string;
   generateJsonLd?: string;
   migrate?: string;
+  migrateFederation?: boolean;
+  write?: boolean;
   dryRun?: boolean;
   fix?: boolean;
   serveMock?: number;
@@ -391,6 +401,10 @@ OPTIONS
                           Directory registry JSON endpoint to audit with
                           --verify-directory-sync (repeatable; defaults to the
                           Stellar Expert SEP-37 directory)
+      --tenant-host <host>
+                          Sibling tenant home domain served by the same cluster;
+                          enables the multi-tenant host-header isolation audit
+                          under --check-network (repeatable)
       --verify-sep10      Verify SEP-10 nonce uniqueness and replay resistance
       --audit-security    Audit token binding and CAA policy for declared
               service endpoints
@@ -407,6 +421,14 @@ OPTIONS
       --verify-sep30      Coordinate multi-party recovery signing and verify threshold compliance
       --verify-sep24-quote-lock
                           Audit SEP-24 interactive deposit fee quote stability across session
+      --simulate-sep24    Drive a synthetic SEP-24 deposit through its lifecycle
+                          and validate every status transition against the
+                          SEP-24 state machine
+      --migrate-federation
+                          Preview the canonical SEP-2 rewrite of a legacy
+                          FEDERATION_SERVER declaration; add --write to apply
+      --write             With --migrate-federation: write the rewritten file
+                          back to disk instead of previewing the diff
       --audit-fees        Compare fixed and percentage fees across stellar.toml,
                           SEP-6 /info, SEP-24 /info, and SEP-38 /prices
                           (implies --check-network)
@@ -819,6 +841,14 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifySep24QuoteLock && cli.checkNetwork
               ? await verifySep24QuoteLock(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.simulateSep24 && cli.checkNetwork
+              ? await simulateSep24Lifecycle(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(await auditMultiTenantRouting(domainResult.parsed, fetchImpl, {
+              rules,
+              ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+              ...(cli.tenantHosts === undefined ? {} : { tenantHosts: cli.tenantHosts }),
+            })),
             ...(cli.verifyClawback && cli.checkNetwork
               ? await simulateClawback(domainResult.parsed, fetchImpl, {
                   rules,
@@ -1156,6 +1186,22 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
+            if (cli.simulateSep24 && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await simulateSep24Lifecycle(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
+            if (cli.checkNetwork || cli.domain !== undefined) {
+              networkDiagnostics.push(
+                ...(await auditMultiTenantRouting(fileResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                  ...(cli.tenantHosts === undefined ? {} : { tenantHosts: cli.tenantHosts }),
+                })),
+              );
+            }
+
             if (cli.verifyClawback && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await simulateClawback(fileResult.parsed, fetchImpl, {
@@ -1444,6 +1490,33 @@ async function main(argv: string[]): Promise<number> {
     } catch (error) {
       process.stderr.write(`${message(error)}\n`);
       return 2;
+    }
+
+    // Federation codemod: preview the unified diff, and only touch the file
+    // when the caller asked for it with --write.
+    if (cli.migrateFederation) {
+      const paths = cli.paths.length > 0 ? cli.paths : [DEFAULT_PATH];
+      for (const path of paths) {
+        const filePath = path === '-' ? DEFAULT_PATH : path;
+        try {
+          const source = await readFile(filePath, 'utf8');
+          const upgrade = await upgradeFederationDeclaration(source, {
+            checkNetwork: cli.checkNetwork,
+            fetchImpl,
+            filePath,
+            rules: cli.rules,
+          });
+          process.stdout.write(upgrade.diff);
+          for (const diag of upgrade.diagnostics) {
+            process.stderr.write(`${diag.rule}: ${diag.message}\n`);
+          }
+          if (cli.write && upgrade.changed) {
+            await writeFile(filePath, upgrade.source, 'utf8');
+          }
+        } catch (error) {
+          process.stderr.write(`Federation migration failed for ${filePath}: ${message(error)}\n`);
+        }
+      }
     }
 
     // Code migration: run before reporting
@@ -2180,6 +2253,11 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         break;
       }
 
+      case '--tenant-host':
+        cli.tenantHosts ??= [];
+        cli.tenantHosts.push(requireValue(argv, ++i, arg));
+        break;
+
       case '--audit-quorum':
         cli.auditQuorum = true;
         break;
@@ -2242,6 +2320,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--verify-sep24-quote-lock':
         cli.verifySep24QuoteLock = true;
+        break;
+
+      case '--simulate-sep24':
+        cli.simulateSep24 = true;
         break;
 
       case '--verify-clawback':
@@ -2507,6 +2589,14 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.migrate = value;
         break;
       }
+
+      case '--migrate-federation':
+        cli.migrateFederation = true;
+        break;
+
+      case '--write':
+        cli.write = true;
+        break;
 
       case '--fix':
         cli.fix = true;
