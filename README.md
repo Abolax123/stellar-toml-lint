@@ -319,6 +319,7 @@ failure.
 | `--crawl-peers`                    | Discover validator peers with overlay `GET_PEERS` messages (requires `--check-network`)                                                                                                                                                                         |
 | `--verify-buckets`                 | Download a sample of each archive's `currentBuckets`, verify the SHA-256 of the decompressed stream, and decode the XDR `BucketEntry` stream; range-read random buckets to check gzip headers, CRC32 trailers, and leading records (requires `--check-network`) |
 | `--verify-history-gaps`            | Confirm every 64-ledger checkpoint across the last 10,000 archived ledgers is downloadable; missing runs emit `history/ledger-sequence-gap-detected` (requires `--check-network`)                                                                               |
+| `--crawl-history`                  | Crawl the previous ten HAS checkpoints and verify their 64-ledger sequence and parent ledger hashes; emits `history/broken-checkpoint-sequence` and `history/checkpoint-ledger-hash-mismatch` (requires `--check-network`)                                      |
 | `--verify-overlay`                 | Complete the overlay TCP handshake with each `[[VALIDATORS]]` HOST and check its network, node ID, and protocol version, then verify an HKDF/ChaCha20-Poly1305 sealed frame exchange (requires `--check-network`)                                               |
 | `--audit-quorum`                   | Solve `[[VALIDATORS]]` quorum sets for split-brain risk and BFT; also emits `validators/partition-vulnerability` and `validators/critical-bridge-node` (requires `--check-network`)                                                                             |
 | `--audit-multisig`                 | Enumerate exact signer coalitions for low, medium, and high account thresholds (requires `--check-network`)                                                                                                                                                     |
@@ -363,6 +364,7 @@ failure.
 | `--contract-graph <fmt>`           | Print which declared contract calls which, as `json` or `mermaid`; needs a declared contract and a known RPC                                                                                                                                                    |
 | `--graph-validators`               | Include validators in diagram                                                                                                                                                                                                                                   |
 | `--graph-color`                    | Color nodes by protocol type                                                                                                                                                                                                                                    |
+| `--graph-quorum [fmt]`             | Render `[[VALIDATORS]]` quorum slices, thresholds, and critical members as `ascii` (default), `mermaid`, or `svg`; `--format` also accepts these renderer names                                                                                                 |
 | `--policy <file>`                  | Evaluate enterprise policy file (JSON or YAML)                                                                                                                                                                                                                  |
 | `--export-ap-config`               | Export Anchor Platform YAML config to stdout                                                                                                                                                                                                                    |
 | `--generate-openapi <file>`        | Generate an OpenAPI 3.1 spec (json or yaml extension)                                                                                                                                                                                                           |
@@ -2085,6 +2087,46 @@ file of every checkpoint across the last 10,000 ledgers (a `HEAD`, falling back 
 An archive whose root state cannot be read degrades to silence. The range, the per-checkpoint
 categories (`history`, `ledger`, `transactions`, `results`, `scp`), and the probe concurrency are
 options of the programmatic `checkHistoryGaps`.
+
+**History HAS chain crawl** (with `--check-network --crawl-history`) — a catchup
+replays checkpoints in order, so a missing checkpoint or a parent hash that does not match the
+checkpoint before it breaks the archive just as surely as a corrupt bucket. This audit reads each
+`[[VALIDATORS]].HISTORY` root `stellar-history.json`, then walks back through the previous ten
+checkpoint HAS files at the content-derived `history/xx/yy/zz/history-<hex>.json` path. Every
+`currentLedger` must be exactly 64 ledgers before the newer checkpoint, and each newer
+`previousLedgerHash` must equal the older checkpoint's ledger hash. A missing, malformed, or
+non-consecutive checkpoint emits `history/broken-checkpoint-sequence` (error); a hash disagreement
+emits `history/checkpoint-ledger-hash-mismatch` (error). An unreadable root HAS degrades to silence.
+
+**Byzantine fault injection** (with `--check-network --audit-quorum`) — the quorum audit also runs a
+fault injector over every declared set. It models Byzantine nodes as withholding agreement,
+enumerates every `N`-member fault combination exactly when the set is small enough (falling back to
+a seeded Monte Carlo sample), and reports the probability that consensus stalls. A set that a single
+node can stall emits `validators/catastrophic-single-point-of-failure` (error); one that tolerates
+fewer faults than the `floor((members - 1) / 3)` BFT budget emits
+`validators/low-byzantine-fault-tolerance` (warning). The same simulation reports the safety buffer
+(the smallest honest quorum) and the critical members by name.
+
+**SCP telemetry audit** (with `--check-network`) — any `[[VALIDATORS]]` entry that configures
+`METRICS_URL`, `ADMIN_URL`, `ADMIN_PORT`, or `METRICS_PORT` is scraped at `/metrics` (falling back to
+the JSON `/info` endpoint). The audit evaluates the `ledger.close.latency` average and the
+`scp.sync.lost-sync` counter: an average above 3500 ms emits
+`validators/high-nomination-latency` (warning), and any lost-sync event emits
+`validators/frequent-lost-sync` (error). Validators without a configured admin surface, or endpoints
+that expose neither metric, stay silent. Programmatic callers can supply explicit endpoints with the
+`endpoints` option.
+
+**Quorum graph explorer** (with `--graph-quorum`) — the declared quorum sets are rendered as a graph
+of validators, nested threshold slices, and leaf members. Nodes are colour-coded by `ORGANIZATION`,
+`HOST` domain, or `ALIAS`, and members whose individual failure stalls a validator are marked as
+critical. Choose terminal `ascii` (the default), `mermaid`, or a standalone interactive `svg` whose
+nodes carry tooltips:
+
+```bash
+stellar-toml-lint --graph-quorum public/.well-known/stellar.toml
+stellar-toml-lint --graph-quorum mermaid public/.well-known/stellar.toml > quorum.mmd
+stellar-toml-lint --graph-quorum --format svg public/.well-known/stellar.toml > quorum.svg
+```
 
 **Quorum intersection audit** (with `--check-network --audit-quorum`) — the quorum sets declared by
 `[[VALIDATORS]].QUORUM_SET` — or, when absent, the `[QUORUM_SET]` stanzas of each validator's

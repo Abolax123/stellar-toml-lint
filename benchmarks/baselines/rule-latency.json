@@ -373,6 +373,10 @@
       "units": 0,
       "rmeFraction": 0.0027
     },
+    "history/broken-checkpoint-sequence": {
+      "units": 0,
+      "rmeFraction": 0
+    },
     "history/bucket-download-failed": {
       "units": 0,
       "rmeFraction": 0.0026
@@ -384,6 +388,10 @@
     "history/bucket-xdr-corrupted": {
       "units": 0,
       "rmeFraction": 0.0036
+    },
+    "history/checkpoint-ledger-hash-mismatch": {
+      "units": 0,
+      "rmeFraction": 0
     },
     "history/missing-category-archive": {
       "units": 0,
@@ -1061,6 +1069,10 @@
       "units": 0,
       "rmeFraction": 0.0008
     },
+    "validators/catastrophic-single-point-of-failure": {
+      "units": 0,
+      "rmeFraction": 0
+    },
     "validators/duplicate-alias": {
       "units": 0.3297,
       "rmeFraction": 0.0032
@@ -1085,6 +1097,10 @@
       "units": 0,
       "rmeFraction": 0.0018
     },
+    "validators/frequent-lost-sync": {
+      "units": 0,
+      "rmeFraction": 0
+    },
     "validators/history-archive-malformed": {
       "units": 0,
       "rmeFraction": 0.0313
@@ -1093,6 +1109,10 @@
       "units": 0,
       "rmeFraction": 0.0325
     },
+    "validators/high-nomination-latency": {
+      "units": 0,
+      "rmeFraction": 0
+    },
     "validators/host": {
       "units": 0.4849,
       "rmeFraction": 0.004
@@ -1100,6 +1120,10 @@
     "validators/invalid-history-url": {
       "units": 2.3862,
       "rmeFraction": 0.0064
+    },
+    "validators/low-byzantine-fault-tolerance": {
+      "units": 0,
+      "rmeFraction": 0
     },
     "validators/peer-port-unreachable": {
       "units": 0,

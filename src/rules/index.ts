@@ -39,6 +39,7 @@ import { archiveDiffRules } from '../history/archive-diff.js';
 import { bucketAuditorRules } from '../history/bucket-auditor.js';
 import { bucketStreamRules } from '../history/bucket-stream-validator.js';
 import { gapAuditorRules } from '../history/gap-auditor.js';
+import { chainCrawlerRules } from '../history/chain-crawler.js';
 import { quorumSolverRules } from '../validators/quorum-solver.js';
 import { quorumAuditRules } from '../validators/quorum.js';
 import { dnsIntegrityRules } from '../security/dns-integrity.js';
@@ -172,6 +173,7 @@ export const allRules: Rule[] = [
   ...bucketAuditorRules,
   ...bucketStreamRules,
   ...gapAuditorRules,
+  ...chainCrawlerRules,
   ...quorumSolverRules,
   ...quorumAuditRules,
   ...dnsIntegrityRules,
@@ -241,6 +243,7 @@ export {
   bucketAuditorRules,
   bucketStreamRules,
   gapAuditorRules,
+  chainCrawlerRules,
   quorumSolverRules,
   quorumAuditRules,
   dnsIntegrityRules,
