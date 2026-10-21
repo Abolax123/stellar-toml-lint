@@ -13,6 +13,15 @@ export { lint, lintDomain } from './lint.js';
 export { formatToml } from './format-file.js';
 export type { FormatResult } from './format-file.js';
 export {
+  auditIndentation,
+  detectIndentation,
+  INDENT_STYLES,
+  indentUnit,
+  isIndentStyle,
+  normalizeIndentation,
+} from './cst/indentation.js';
+export type { IndentStyle, IndentationFinding, IndentationReport } from './cst/indentation.js';
+export {
   semanticHash,
   semanticallyEqual,
   canonicalize,
@@ -66,6 +75,23 @@ export type {
   TokenKind,
   TriviaKind,
 } from './cst/lexer.js';
+export {
+  LosslessRewriter,
+  rewrite,
+  countComments,
+  detectCommentLoss,
+  evaluateRewritten,
+  COMMENT_LOSS_RULE,
+} from './cst/lossless-rewrite.js';
+export type { RewriteEdit, RewriteResult } from './cst/lossless-rewrite.js';
+export { IncrementalParser, computeLineDelta } from './cst/incremental-parser.js';
+export type {
+  IncrementalParserOptions,
+  LineDelta,
+  ReparseResult,
+} from './cst/incremental-parser.js';
+export { renderSplitDiff, detectTerminalWidth } from './reporters/split-diff.js';
+export type { Segment, SplitDiffOptions } from './reporters/split-diff.js';
 export { allRules, ruleIds } from './rules/index.js';
 export { PRESETS, PRESET_NAMES, resolvePreset } from './presets.js';
 export type { Preset, PresetName } from './presets.js';
@@ -96,6 +122,23 @@ export type {
 export { fix, type TextEdit, type FixResult } from './fix.js';
 export { probeTls } from './tls.js';
 export type { TlsProbe } from './tls.js';
+export {
+  checkSniFallback,
+  sniHandshakeProbe,
+  sniAuditorRules,
+  SECURITY_SNI_FALLBACK_INFORMATION_LEAK,
+} from './security/sni-auditor.js';
+export type { SniCertificateInfo, SniProbe } from './security/sni-auditor.js';
+export {
+  checkSubdomainTakeover,
+  subdomainTakeoverRules,
+  DEFAULT_TAKEOVER_PATTERNS,
+  SECURITY_DANGLING_CNAME_TAKEOVER_RISK,
+} from './security/subdomain-takeover.js';
+export type {
+  CnameTargetPattern,
+  SubdomainTakeoverOptions,
+} from './security/subdomain-takeover.js';
 export {
   checkPeerPortReachability,
   probeTcpPort,
@@ -782,6 +825,85 @@ export {
 } from './soroban/auth-auditor.js';
 export type { AuthAuditorOptions, ContractFunctionSpec } from './soroban/auth-auditor.js';
 
+export {
+  auditJwtCrypto,
+  verifyJwtCrypto,
+  checkJwtCrypto,
+  parseJwt,
+  decodeBase64Url,
+  jwtCryptoAuditorRules,
+  jwtCryptoRuleIds,
+  INSECURE_JWT_ALGORITHM_RULE,
+  JWT_SIGNATURE_VERIFICATION_FAILED_RULE,
+} from './security/jwt-crypto-auditor.js';
+export type {
+  JwtCryptoAuditorOptions,
+  JwtHeader,
+  JwtJwk,
+  JwtPayload,
+  ParsedJwt,
+} from './security/jwt-crypto-auditor.js';
+
+export {
+  auditZkpAttestations,
+  validateZkpAttestations,
+  checkZkpAttestations,
+  zkpAttestationRules,
+  zkpAttestationRuleIds,
+  MALFORMED_ZKP_PROOF_RULE,
+  MALFORMED_ZKP_PROOF_DATA_RULE,
+  ZKP_SUPPLY_COMMITMENT_MISMATCH_RULE,
+} from './crypto/zkp-attestation.js';
+export type { ZkpAttestationOptions } from './crypto/zkp-attestation.js';
+
+export {
+  simulateTrustlineFreezing,
+  simulateTrustLineFreeze,
+  simulateTrustlineRevocation,
+  simulateTrustlineAuthorization,
+  auditTrustlineSimulator,
+  checkTrustlineSimulator,
+  checkTrustlineFreezing,
+  auditTrustlineFreezing,
+  auditTrustlineAuthorization,
+  fetchIssuerAuthorization,
+  buildTrustLineFreezeTransaction,
+  hasFreezeDisclosure,
+  trustlineSimulatorRules,
+  trustlineSimulatorRuleIds,
+  UNDISCLOSED_FREEZING_RULE,
+  UNDISCLOSED_ASSET_FREEZING_RULE,
+} from './security/trustline-simulator.js';
+export type {
+  HorizonIssuerAuthorization,
+  TrustlineSimulatorOptions,
+} from './security/trustline-simulator.js';
+
+export {
+  auditVanityAddresses,
+  auditVanityAddress,
+  checkVanityAddresses,
+  analyzeVanityAddress,
+  vanityAuditorRules,
+  vanityAuditorRuleIds,
+  SUSPICIOUS_VANITY_ADDRESS_RULE,
+  VANITY_SECURITY_ADVISORY_URL,
+} from './crypto/vanity-auditor.js';
+export type { VanityAnalysis } from './crypto/vanity-auditor.js';
+
+export {
+  verifySep10,
+  sep10Rules,
+  sep10RuleIds,
+  INVALID_SOURCE_RULE,
+  INVALID_SEQUENCE_RULE,
+  EXPIRED_TIMEBOUNDS_RULE,
+  INVALID_SERVER_SIGNATURE_RULE,
+  MISSING_CLIENT_DOMAIN_RULE,
+  CHALLENGE_SUBMISSION_FAILED_RULE,
+} from './protocols/sep10.js';
+export type { Sep10Options } from './protocols/sep10.js';
+
 export type {
   Diagnostic,
   Fix,
@@ -800,8 +922,14 @@ export type {
 export { SPEC_URL } from './spec.js';
 export { applyFixes, computeFixEdits } from './fix.js';
 export type { OffsetTextEdit } from './fix.js';
-export { codeActionsFor } from './lsp/code-actions.js';
-export type { LspCodeAction, LspRange, LspTextEdit, LspWorkspaceEdit } from './lsp/code-actions.js';
+export { codeActionsFor } from './lsp/code-actions-provider.js';
+export type {
+  LspCodeAction,
+  LspCodeActionKind,
+  LspRange,
+  LspTextEdit,
+  LspWorkspaceEdit,
+} from './lsp/code-actions-provider.js';
 
 export {
   checkSignatureStateMachine,
@@ -868,6 +996,146 @@ export type {
   KeyRevocationAnalysisInput,
   KeyRevocationOptions,
 } from './security/key-revocation.js';
+
+export {
+  analyzeKeyRotations,
+  analyzeRotationTimeline,
+  checkKeyRotation,
+  checkKeyRotationSynchronization,
+  checkSigningKeyRotation,
+  detectKeyRotationHistory,
+  checkRotation,
+  rotationDetector,
+  checkRotationDetector,
+  checkRotationSynchronization,
+  detectKeyRotation,
+  rotationEventsFromOperations,
+  rotationDetectorRules,
+  keyRotationRules,
+  rotationRules,
+  keyRotationDetectorRules,
+  rotationDetectorRuleIds,
+  STALE_SIGNING_KEY_POST_ROTATION_RULE,
+  UNRECORDED_SIGNER_ADDITION_RULE,
+  SECURITY_STALE_SIGNING_KEY_POST_ROTATION,
+  SECURITY_UNRECORDED_SIGNER_ADDITION,
+  STALE_SIGNING_KEY_RULE,
+  ROTATION_WINDOW_DAYS,
+  ROTATION_SYNC_GRACE_MS,
+} from './security/rotation-detector.js';
+export type {
+  HorizonOperation as RotationHorizonOperation,
+  KeyRotationEvent,
+  AccountOperations,
+  RotationAnalysisInput,
+  RotationDetectorOptions,
+} from './security/rotation-detector.js';
+
+export {
+  checkProofOfReserve,
+  checkCollateralReserves,
+  auditProofOfReserve,
+  auditCollateralReserves,
+  auditReserves,
+  checkReserves,
+  auditReserveBalances,
+  proofOfReserveAuditor,
+  collateralAccountsOf,
+  collateralReserveAccountsOf,
+  fetchCollateralBalance,
+  fetchEthereumBalance,
+  fetchEvmBalance,
+  fetchBitcoinBalance,
+  fetchSolanaBalance,
+  fetchStellarBalance,
+  compareCollateralReserve,
+  collateralReserveDeficitDiagnostics,
+  compareReserveToSupply,
+  proofOfReserveRules,
+  collateralReserveRules,
+  reserveAuditorRules,
+  proofOfReserveAuditorRules,
+  proofOfReserveRuleIds,
+  COLLATERAL_RESERVE_DEFICIT_RULE,
+  UNSUPPORTED_COLLATERAL_CHAIN_RULE,
+  SECURITY_COLLATERAL_RESERVE_DEFICIT,
+  SECURITY_UNSUPPORTED_COLLATERAL_CHAIN,
+  RESERVE_DEFICIT_RULE,
+  DEFAULT_ETHEREUM_RPC_URL,
+  DEFAULT_BITCOIN_API_URL,
+  DEFAULT_SOLANA_RPC_URL,
+} from './security/proof-of-reserve.js';
+export type {
+  CollateralAccount,
+  CollateralChain,
+  ProofOfReserveOptions,
+  ReserveSnapshot,
+  ReserveComparisonInput,
+} from './security/proof-of-reserve.js';
+
+export {
+  parsePkcs11Uri,
+  parsePkcs11,
+  validatePkcs11Uri,
+  validatePkcs11,
+  auditPkcs11Uri,
+  checkPkcs11Uri,
+  pkcs11Diagnostics,
+  auditPkcs11,
+  checkPkcs11Pointers,
+  checkPkcs11Uris,
+  auditPkcs11Pointers,
+  isPkcs11Uri,
+  isValidPkcs11Uri,
+  pkcs11ValidatorRules,
+  pkcs11Rules,
+  pkcs11ValidatorRuleIds,
+  MALFORMED_PKCS11_URI_RULE,
+  INSECURE_EMBEDDED_PKCS11_PIN_RULE,
+  CRYPTO_MALFORMED_PKCS11_URI,
+  CRYPTO_INSECURE_EMBEDDED_PKCS11_PIN,
+} from './crypto/pkcs11-validator.js';
+export type {
+  ParsedPkcs11Uri,
+  Pkcs11Attribute,
+  Pkcs11ParseResult,
+  Pkcs11ValidatorOptions,
+} from './crypto/pkcs11-validator.js';
+
+export {
+  checkSignatureMalleability,
+  checkMalleability,
+  auditMalleability,
+  auditSignatureMalleability,
+  auditCollateralSignatureMalleability,
+  auditSep10ChallengeSignatures,
+  auditEd25519Signature,
+  parseEd25519Signature,
+  parseSignature,
+  decodeEd25519Signature,
+  bytesToBigIntLE,
+  isCanonicalEd25519Signature,
+  isCanonicalSignature,
+  isMalleableEd25519Signature,
+  isSignatureMalleable,
+  isEd25519SignatureMalleable,
+  malleabilityAuditorRules,
+  malleabilityRules,
+  signatureMalleabilityRules,
+  malleabilityAuditorRuleIds,
+  MALLEABLE_SIGNATURE_RULE,
+  CRYPTO_MALLEABLE_SIGNATURE,
+  MALLEABLE_SIGNATURE_DETECTED_RULE,
+  MALLEABILITY_RULE,
+  ED25519_GROUP_ORDER,
+  ED25519_L,
+  ED25519_SIGNATURE_BYTES,
+} from './crypto/malleability-auditor.js';
+export type {
+  ParsedEd25519Signature,
+  SignatureMalleabilityResult,
+  MalleabilityAuditOptions,
+} from './crypto/malleability-auditor.js';
 
 export {
   analyzeAccountThresholds,
@@ -1144,3 +1412,74 @@ export type { JsonLdNode, JsonLdValidation } from './generators/jsonld.js';
 
 export { MonitorDaemon } from './monitor/daemon.js';
 export type { DiffResult, MonitorDaemonOptions, PollSample } from './monitor/daemon.js';
+
+export {
+  coordinateSep30Recovery,
+  extractRecoveryServers,
+  sep30CoordinatorRules,
+  sep30CoordinatorRuleIds,
+  INSUFFICIENT_RECOVERY_SIGNATURES_RULE,
+  SIGNATURE_COORDINATION_TIMEOUT_RULE,
+} from './protocols/sep30-coordinator.js';
+export type { Sep30CoordinatorOptions } from './protocols/sep30-coordinator.js';
+
+export {
+  validateSep31KycMatrix,
+  generateSep31PaymentJsonSchema,
+  generateSep31ClientSchemas,
+  sep31KycRules,
+  sep31KycRuleIds,
+  INVALID_KYC_FIELD_DEFINITION_RULE,
+  MISSING_SENDER_KYC_DECLARATION_RULE,
+} from './protocols/sep31-kyc-matrix.js';
+export type {
+  Sep31FieldDefinition,
+  Sep31AssetFields,
+  Sep31AssetInfo,
+  Sep31KycMatrixOptions,
+} from './protocols/sep31-kyc-matrix.js';
+
+export {
+  upgradeFederationDeclaration,
+  canonicalFederationServer,
+  legacyLookupFlags,
+  federationUpgradeRules,
+  FEDERATION_UPGRADE_APPLIED_RULE,
+  FEDERATION_UPGRADE_SKIPPED_RULE,
+  FEDERATION_SERVER_INVALID_RULE,
+  FEDERATION_SERVER_UNREACHABLE_RULE,
+} from './codemod/index.js';
+export type {
+  FederationLookupFlags,
+  FederationUpgradeOptions,
+  FederationUpgradeResult,
+} from './codemod/index.js';
+
+export {
+  auditMultiTenantRouting,
+  multiTenantRules,
+  TENANT_CROSS_CONTAMINATION_RULE,
+  INVALID_HOST_ROUTING_RULE,
+} from './network/multi-tenant.js';
+export type { MultiTenantOptions } from './network/multi-tenant.js';
+
+export {
+  verifySep6FeeCurve,
+  sep6FeeVerifierRules,
+  DEFAULT_FEE_SAMPLE_AMOUNTS,
+  NON_MONOTONIC_FEE_CURVE_RULE,
+  FEE_EXCEEDS_DECLARED_BOUNDS_RULE,
+} from './protocols/sep6-fee-verifier.js';
+export type { Sep6FeeVerifierOptions } from './protocols/sep6-fee-verifier.js';
+
+export {
+  simulateSep24Lifecycle,
+  sep24LifecycleRules,
+  isValidTransition,
+  SEP24_LIFECYCLE_STATES,
+  SEP24_TERMINAL_STATES,
+  SEP24_ALLOWED_TRANSITIONS,
+  ILLEGAL_STATE_TRANSITION_RULE,
+  MISSING_LIFECYCLE_TIMESTAMPS_RULE,
+} from './protocols/sep24-lifecycle.js';
+export type { Sep24LifecycleOptions } from './protocols/sep24-lifecycle.js';

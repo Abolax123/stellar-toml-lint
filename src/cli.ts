@@ -21,6 +21,8 @@ import { auditBgpRoutes } from './network/bgp-route-detector.js';
 import { checkRateLimitResilience } from './network/rate-limit-tester.js';
 import { horizonUrlFor } from './network-checks.js';
 import { checkSignatureStateMachineFromDocument } from './security/signature-state-machine.js';
+import { checkSniFallback } from './security/sni-auditor.js';
+import { checkSubdomainTakeover } from './security/subdomain-takeover.js';
 import { checkPeerPortReachability } from './validators/net-probe.js';
 import {
   formatCheckstyle,
@@ -40,6 +42,8 @@ import {
   formatSummary,
   formatText,
 } from './reporters.js';
+import { renderSplitDiff } from './reporters/split-diff.js';
+import { detectCommentLoss } from './cst/lossless-rewrite.js';
 import { calculateReadiness } from './readiness.js';
 import { expandGlob, hasMagic } from './glob.js';
 import { generateAnchorTestsConfig } from './integrations/anchor-tests.js';
@@ -47,6 +51,7 @@ import { checkDisplayDecimals } from './rules/display-decimals-audit.js';
 import { checkHorizon } from './rules/horizon-check.js';
 import { checkSep3Auth } from './rules/sep3-auth.js';
 import { checkSep38 } from './rules/sep38-endpoints.js';
+import { checkCrossSepFees } from './rules/cross-sep-fee-auditor.js';
 import { checkRegulatedIssuerFlags } from './rules/regulated-flags.js';
 import { checkFixedSupplyIssuerLocks } from './rules/fixed-supply-audit.js';
 import { checkContracts } from './soroban.js';
@@ -55,6 +60,7 @@ import { checkCorridorRouting } from './corridors/routingVerifier.js';
 import { checkHistoryArchives } from './validators/historyArchive.js';
 import { checkBridgeReserves } from './validators/bridgeReserve.js';
 import { auditTomlContractEnvMeta } from './soroban/env-meta.js';
+import { auditTomlContractParity } from './soroban/parity-verifier.js';
 import { auditTomlContractEvents } from './soroban/events.js';
 import { auditTomlContractAdmins } from './soroban/admin-auditor.js';
 import { auditTomlContractSimulation } from './soroban/simulation.js';
@@ -74,23 +80,29 @@ import {
 import { checkSep6 } from './cross-sep/sep6.js';
 import { checkHistoryArchive } from './rules/history-url-check.js';
 import { checkSep10Replay } from './protocols/sep10-replay.js';
+import { verifySep10 } from './protocols/sep10.js';
 import { checkTokenBinding } from './security/token-binding.js';
 import { verifySep6Integration } from './protocols/sep6.js';
 import { verifySep31 } from './protocols/sep31.js';
 import { verifySep31Webhooks } from './protocols/sep31-webhook-verifier.js';
+import { validateSep31KycMatrix } from './protocols/sep31-kyc-matrix.js';
 import { verifySep8 } from './protocols/sep8.js';
 import { verifySep8Webhook } from './sep8/webhookCoordinator.js';
 import { verifySep38 } from './protocols/sep38.js';
 import { validateIpfsMetadata } from './validators/ipfsMetadata.js';
 import { auditTomlInstanceStorage } from './soroban/instance-storage-auditor.js';
 import { auditTomlAccountData } from './security/account-data-auditor.js';
-import { verifySep24 } from './protocols/sep24.js';
+import { checkSep24PostMessage, verifySep24 } from './protocols/sep24.js';
 import { verifySep12 } from './protocols/sep12.js';
 import { verifySep12Deletion } from './protocols/sep12-deletion.js';
 import { verifySep30 } from './protocols/sep30.js';
+import { coordinateSep30Recovery } from './protocols/sep30-coordinator.js';
 import { verifySep24QuoteLock } from './protocols/sep24-quote-lock.js';
+import { simulateSep24Lifecycle } from './protocols/sep24-lifecycle.js';
+import { auditMultiTenantRouting } from './network/multi-tenant.js';
 import { checkCollateralGovernance } from './security/collateral-governance.js';
 import { simulateClawback } from './security/clawback-simulator.js';
+import { simulateTrustlineFreezing } from './security/trustline-simulator.js';
 import { checkHistoryPublish } from './history/publish-validator.js';
 import { checkArchiveDiff } from './history/archive-diff.js';
 import { checkBucketIntegrity } from './history/bucket-auditor.js';
@@ -106,9 +118,14 @@ import { checkSplitBrain } from './validators/split-brain-solver.js';
 import { checkByzantineResilience } from './validators/byzantine-simulator.js';
 import { checkValidatorTelemetry } from './validators/telemetry-auditor.js';
 import { checkDnsIntegrity } from './security/dns-integrity.js';
+import { verifyDnssecChain } from './security/dnssec-chain-node.js';
+import { auditOriginExposure } from './security/origin-leak-detector.js';
+import { submitPullRequestReview, type PullRequestReviewSource } from './reporters/pr-reviewer.js';
 import { checkHsts } from './security/hsts-auditor.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
 import { checkSigningKeyRevocation } from './security/key-revocation.js';
+import { checkKeyRotation } from './security/rotation-detector.js';
+import { checkProofOfReserve } from './security/proof-of-reserve.js';
 import { checkSigningKeyMultisig } from './security/multisig.js';
 import { checkMpcGovernance } from './security/mpc-governance.js';
 import { checkCertificateTransparencyFromDocument } from './security/ct-auditor.js';
@@ -125,6 +142,7 @@ import { checkOverlayTopology } from './overlay/topology-analyzer.js';
 import { checkValidatorDnsDiscovery } from './validators/dns-discovery.js';
 import { checkThresholdOptimizer } from './security/threshold-optimizer.js';
 import { allRules } from './rules/index.js';
+import { isUrl } from './predicates.js';
 import { PRESETS, resolvePreset, type PresetName } from './presets.js';
 import { generateBadgeSvg, generateShieldsEndpoint } from './generators/badge.js';
 import {
@@ -177,12 +195,16 @@ import {
   runMigration,
   dryRun as dryRunMigration,
   generateDiff,
+  upgradeFederationDeclaration,
   type MigrationTarget,
-} from './codemod/migrate.js';
+} from './codemod/index.js';
 import { applyFixes } from './fix.js';
 import type { Diagnostic, LintResult, RuleOverrides, Severity } from './types.js';
 import { formatToml } from './format-file.js';
 import type { FormatResult } from './format-file.js';
+import { isIndentStyle, normalizeIndentation } from './cst/indentation.js';
+import type { IndentStyle } from './cst/indentation.js';
+import { parseCst } from './cst/parser.js';
 import { semanticHash } from './cst/semantic-hash.js';
 
 const VERSION = '0.1.0';
@@ -209,6 +231,7 @@ interface Cli {
   domain?: string;
   format: Format;
   formatFile: boolean;
+  formatStyle?: IndentStyle;
   semanticHash: boolean;
   healthCheck?: boolean;
   strict: boolean;
@@ -223,11 +246,15 @@ interface Cli {
   maxWarnings?: number;
   failOn?: Severity;
   checkNetwork: boolean;
+  auditFees: boolean;
+  verifyPostmessage: boolean;
+  postmessageUrl?: string;
   checkIpv6?: boolean;
   auditRouting?: boolean;
   expectedAsns?: string[];
   verifyDirectorySync?: boolean;
   directoryFeeds?: string[];
+  tenantHosts?: string[];
   auditQuorum: boolean;
   auditDos?: boolean;
   auditMultisig?: boolean;
@@ -236,6 +263,7 @@ interface Cli {
   followLinks: boolean;
   verifySep10: boolean;
   auditSecurity?: boolean;
+  auditReserves?: boolean;
   verifySep6?: boolean;
   verifySep31?: boolean;
   verifySep8?: boolean;
@@ -245,11 +273,14 @@ interface Cli {
   verifySep12Deletion?: boolean;
   verifySep30?: boolean;
   verifySep24QuoteLock?: boolean;
+  simulateSep24?: boolean;
   verifyClawback?: boolean;
   verifySep8Webhook?: boolean;
   verifyIpfs?: boolean;
   crawlPeers: boolean;
   verifyDnssec: boolean;
+  verifyDnssecChain?: boolean;
+  reportPrReview?: boolean;
   verifyOverlay: boolean;
   verifyBuckets: boolean;
   verifyHistoryGaps: boolean;
@@ -263,6 +294,7 @@ interface Cli {
   interactive?: boolean;
   exploreRules?: boolean;
   checkContracts: boolean;
+  checkParity: boolean;
   sorobanRpc?: string;
   evmRpc?: string;
   simulateSoroban?: boolean;
@@ -289,10 +321,13 @@ interface Cli {
   slaStore?: string;
   generateJsonLd?: string;
   migrate?: string;
+  migrateFederation?: boolean;
+  write?: boolean;
   dryRun?: boolean;
   fix?: boolean;
   serveMock?: number;
-  diff?: { base: string; target: string };
+  diff?: { base?: string; target: string };
+  diffStyle?: 'unified' | 'side-by-side';
   readiness?: boolean;
 }
 
@@ -308,8 +343,13 @@ USAGE
   stellar-toml-lint --domain <domain>    Fetch and lint https://<domain>/.well-known/stellar.toml
   stellar-toml-lint --diff <base> <target>
                                          Compare two versions for breaking changes
+  stellar-toml-lint --diff <file2>       Compare ./stellar.toml (or the first
+                                         positional path) against file2
   cat stellar.toml | stellar-toml-lint - Lint stdin
   stellar-toml-lint --format-file <file> Rewrite the file in canonical SEP-1 layout
+  stellar-toml-lint --format-style 2 <file>
+                                         Rewrite the indentation as 2 spaces (or
+                                         4, or tabs)
   stellar-toml-lint --semantic-hash <file>
                                          Print a SHA-256 of the file's data that
                                          ignores whitespace, comments, and key order
@@ -326,6 +366,9 @@ OPTIONS
       --format-file       Rewrite files in place: SEP-1 field order, consistent
                           quoting, comments preserved. Distinct from --format
                           (a reporter).
+      --format-style <s>  Rewrite a file's indentation as 2 spaces, 4 spaces, or
+                          tabs, leaving everything else byte-for-byte intact.
+                          Combined with --dry-run it prints the diff instead.
       --strict            Treat warnings as errors
       --max-warnings <n>  Fail if warnings exceed n
       --fail-on <sev>     Exit 1 when any diagnostic meets or exceeds <sev>:
@@ -388,9 +431,15 @@ OPTIONS
                           Directory registry JSON endpoint to audit with
                           --verify-directory-sync (repeatable; defaults to the
                           Stellar Expert SEP-37 directory)
+      --tenant-host <host>
+                          Sibling tenant home domain served by the same cluster;
+                          enables the multi-tenant host-header isolation audit
+                          under --check-network (repeatable)
       --verify-sep10      Verify SEP-10 nonce uniqueness and replay resistance
-      --audit-security    Audit token binding and CAA policy for declared
-              service endpoints
+      --audit-security    Audit token binding, CAA, SNI fallback, and dangling
+              CNAME risks for service endpoints
+      --audit-reserves    With --check-network: compare external-chain collateral
+                          reserve balances against Stellar circulating supply
       --verify-sep6       Run end-to-end programmatic SEP-6 integration tester
       --verify-sep31      Audit SEP-31 cross-border payment lifecycle and schema
       --verify-sep8       Simulate SEP-8 regulated asset compliance approval server interaction
@@ -399,8 +448,26 @@ OPTIONS
       --verify-sep12      Audit SEP-12 KYC customer verification against the KYC server
       --verify-sep12-deletion
                           Verify SEP-12 DELETE /customer endpoint (GDPR right-to-be-forgotten)
+      --verify-sep30      Coordinate multi-party recovery signing and verify threshold compliance
       --verify-sep24-quote-lock
                           Audit SEP-24 interactive deposit fee quote stability across session
+      --simulate-sep24    Drive a synthetic SEP-24 deposit through its lifecycle
+                          and validate every status transition against the
+                          SEP-24 state machine
+      --migrate-federation
+                          Preview the canonical SEP-2 rewrite of a legacy
+                          FEDERATION_SERVER declaration; add --write to apply
+      --write             With --migrate-federation: write the rewritten file
+                          back to disk instead of previewing the diff
+      --audit-fees        Compare fixed and percentage fees across stellar.toml,
+                          SEP-6 /info, SEP-24 /info, and SEP-38 /prices
+                          (implies --check-network)
+      --verify-postmessage
+                          Inspect SEP-24 interactive postMessage callbacks
+                          (implies --check-network; needs Playwright or Puppeteer)
+      --postmessage-url <url>
+                          Interactive SEP-24 URL to inspect instead of creating
+                          a test deposit session
       --verify-clawback   Verify asset clawback authority (CAP-35) via Horizon and Soroban RPC
       --verify-sep8-webhook
                            Simulate SEP-8 regulated asset post-signing approval webhook
@@ -423,10 +490,16 @@ OPTIONS
                           ChaCha20-Poly1305 session keys and verify one sealed
                           frame exchange
       --verify-dnssec     Compare A/AAAA answers across DNSSEC-validating DoH resolvers
+      --verify-dnssec-chain
+              Check DNSKEY, DS, and RRSIG evidence through a validating DoH resolver
+      --report-pr-review  Post fix-backed inline suggestions to the GitHub Actions pull request
       --follow-links      Fetch and lint the toml pointers in CURRENCIES
                           (implied by --domain)
       --check-contracts   Verify that Soroban contracts are deployed on chain, that
                           their WASM is not evicted, and that their TTL is live
+      --check-parity      With --check-network: compare declared contracts' WASM
+                          hashes and exported interfaces across Mainnet, Testnet,
+                          and Futurenet
       --rpc-url <url>     Soroban RPC endpoint to use with --check-contracts
                           (defaults from NETWORK_PASSPHRASE; alias --soroban-rpc)
       --evm-rpc <url>     EVM JSON-RPC endpoint to use with --check-network for
@@ -481,6 +554,14 @@ OPTIONS
         --migrate <target>  Run a code migration: sep41 or v2
         --fix               Apply safe autofixes to files
         --dry-run           Preview autofix or migration diff without modifying files
+        --diff <base> <target>
+                            Compare two versions for breaking changes; with a
+                            single value, compares ./stellar.toml (or the first
+                            positional path) against that file
+        --diff-style <style>
+                            How to render --diff: unified (default, the
+                            semantic change list) or side-by-side (aligned
+                            columns with word-level highlighting)
        --monitor           Start a polling daemon that watches a URL or local
                            file for changes
        --interval <ms>     Polling interval in milliseconds (default 300)
@@ -585,6 +666,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (cli.formatFile) return formatFiles(cli);
+  if (cli.formatStyle !== undefined) return formatStyleFiles(cli);
   if (cli.semanticHash) return printSemanticHashes(cli);
 
   // The explorer is about rules, not about a file, so it runs before any path
@@ -614,6 +696,7 @@ async function main(argv: string[]): Promise<number> {
     }
 
     const results: { name: string; result: LintResult }[] = [];
+    const reviewSources: PullRequestReviewSource[] = [];
     // Each linted file's contract error catalogues, kept for the text report.
     const catalogues: ContractErrorCatalogue[] = [];
     // Project defaults from .stellartomlrc.json, overridden by any CLI flag.
@@ -641,10 +724,23 @@ async function main(argv: string[]): Promise<number> {
 
     try {
       if (cli.diff) {
-        const baseSource = await readFile(cli.diff.base, 'utf8');
-        const targetSource = await readFile(cli.diff.target, 'utf8');
+        const basePath = cli.diff.base ?? cli.paths[0] ?? DEFAULT_PATH;
+        const targetPath = cli.diff.target;
+        const baseSource = await readFile(basePath, 'utf8');
+        const targetSource = await readFile(targetPath, 'utf8');
         const differences = compareToml(baseSource, targetSource);
-        process.stdout.write(formatDiff(differences, cli.diff, { color }));
+        if (cli.diffStyle === 'side-by-side') {
+          process.stdout.write(
+            renderSplitDiff(baseSource, targetSource, {
+              base: basePath,
+              target: targetPath,
+              color,
+            }),
+          );
+        }
+        process.stdout.write(
+          formatDiff(differences, { base: basePath, target: targetPath }, { color }),
+        );
         return hasBreakingChanges(differences) ? 1 : 0;
       }
 
@@ -659,6 +755,7 @@ async function main(argv: string[]): Promise<number> {
             strict,
             rules,
             checkNetwork: cli.checkNetwork,
+            ...(cli.mockFixtures === undefined ? {} : { mockFixtures: cli.mockFixtures }),
             followLinks: true,
             ...otelRuleHook,
           },
@@ -666,6 +763,19 @@ async function main(argv: string[]): Promise<number> {
         );
         if (domainResult.parsed && cli.checkNetwork) {
           const networkDiagnostics: Diagnostic[] = [
+            ...(cli.verifySep10 && typeof domainResult.parsed.WEB_AUTH_ENDPOINT === 'string'
+              ? await verifySep10(
+                  domainResult.parsed.WEB_AUTH_ENDPOINT,
+                  typeof domainResult.parsed.SIGNING_KEY === 'string'
+                    ? domainResult.parsed.SIGNING_KEY
+                    : '',
+                  {
+                    rules,
+                    fetchImpl,
+                    ...(cli.domain === undefined ? {} : { homeDomain: cli.domain }),
+                  },
+                )
+              : []),
             ...(cli.mockFixtures === undefined
               ? await auditEmailDns(domainResult.parsed, { rules })
               : []),
@@ -699,6 +809,13 @@ async function main(argv: string[]): Promise<number> {
                   domain: cli.domain,
                 })
               : []),
+            ...(cli.verifyDnssecChain
+              ? await verifyDnssecChain(domainResult.parsed, {
+                  rules,
+                  domain: cli.domain,
+                  fetchImpl,
+                })
+              : []),
             ...(cli.auditSecurity
               ? await checkTokenBinding(domainResult.parsed, fetchImpl, {
                   rules,
@@ -708,10 +825,28 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.auditSecurity && cli.mockFixtures === undefined
               ? await auditCaa(domainResult.parsed, { rules, domain: cli.domain })
               : []),
+            ...(cli.checkNetwork && cli.mockFixtures === undefined
+              ? await checkSniFallback(domainResult.parsed, { rules })
+              : []),
+            ...(cli.auditSecurity && cli.mockFixtures === undefined
+              ? await checkSubdomainTakeover(domainResult.parsed, { rules })
+              : []),
             ...(await checkSigningKeyRevocation(domainResult.parsed, { rules, fetchImpl })),
             ...(await checkSigningKeyMultisig(domainResult.parsed, { rules, fetchImpl })),
             ...(await checkMpcGovernance(domainResult.parsed, { rules, fetchImpl })),
+            ...(await checkKeyRotation(domainResult.parsed, {
+              rules,
+              fetchImpl,
+              ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+            })),
+            ...(cli.auditReserves
+              ? await checkProofOfReserve(domainResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.evmRpc === undefined ? {} : { evmRpcUrl: cli.evmRpc }),
+                })
+              : []),
             ...(await checkImmutabilityClaims(domainResult.parsed, fetchImpl, { rules })),
+            ...(await simulateTrustlineFreezing(domainResult.parsed, fetchImpl, { rules })),
             ...(await checkCertificateTransparencyFromDocument(domainResult.parsed, {
               rules,
               fetchImpl,
@@ -739,13 +874,20 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifySep31
               ? await verifySep31(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.verifySep31 ||
+            (cli.checkNetwork && domainResult.parsed?.DIRECT_PAYMENT_SERVER !== undefined)
+              ? await validateSep31KycMatrix(domainResult.parsed, fetchImpl, { rules })
+              : []),
             // The webhook listener opens a local socket and waits for a real
             // callback, so a hermetic fixture run skips it.
             ...(cli.verifySep31 && cli.mockFixtures === undefined
               ? await verifySep31Webhooks(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.verifySep30 && domainResult.parsed?.RECOVERY_SERVER !== undefined
-              ? await verifySep30(domainResult.parsed, fetchImpl, { rules })
+              ? [
+                  ...(await verifySep30(domainResult.parsed, fetchImpl, { rules })),
+                  ...(await coordinateSep30Recovery(domainResult.parsed, fetchImpl, { rules })),
+                ]
               : []),
             ...(cli.verifySep8 ? await verifySep8(domainResult.parsed, fetchImpl, { rules }) : []),
             ...(cli.verifySep8Webhook
@@ -757,8 +899,17 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifySep38
               ? await verifySep38(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.auditFees
+              ? await checkCrossSepFees(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(cli.verifySep24
               ? await verifySep24(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(cli.verifyPostmessage
+              ? await checkSep24PostMessage(domainResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.postmessageUrl !== undefined ? { url: cli.postmessageUrl } : {}),
+                })
               : []),
             ...(cli.verifySep12Deletion && cli.checkNetwork
               ? await verifySep12Deletion(domainResult.parsed, fetchImpl, { rules })
@@ -766,6 +917,14 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifySep24QuoteLock && cli.checkNetwork
               ? await verifySep24QuoteLock(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.simulateSep24 && cli.checkNetwork
+              ? await simulateSep24Lifecycle(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(await auditMultiTenantRouting(domainResult.parsed, fetchImpl, {
+              rules,
+              ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+              ...(cli.tenantHosts === undefined ? {} : { tenantHosts: cli.tenantHosts }),
+            })),
             ...(cli.verifyClawback && cli.checkNetwork
               ? await simulateClawback(domainResult.parsed, fetchImpl, {
                   rules,
@@ -840,6 +999,9 @@ async function main(argv: string[]): Promise<number> {
               rules,
               ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
             })),
+            ...(cli.checkParity
+              ? await auditTomlContractParity(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(await auditTomlContractEvents(domainResult.parsed, fetchImpl, {
               rules,
               ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
@@ -901,6 +1063,11 @@ async function main(argv: string[]): Promise<number> {
             const fileResult = lint(source, { rules });
             const fixed = applyFixes(source, fileResult.diagnostics);
             if (fixed !== source) {
+              const loss = detectCommentLoss(source, fixed);
+              if (loss !== undefined) {
+                process.stderr.write(`${path === '-' ? 'stdin' : path}: ${loss.message}\n`);
+                return 2;
+              }
               const diff = generateDiff(source, fixed, path === '-' ? 'stdin' : path);
               process.stdout.write(diff);
             }
@@ -914,6 +1081,10 @@ async function main(argv: string[]): Promise<number> {
           strict = strict || config.strict;
           maxWarnings ??= config.maxWarnings;
           const rules = { ...config.rules, ...cli.rules };
+          // Captured when --fix would have dropped comments: the rewrite is
+          // skipped for this file, and the finding joins the report below so
+          // the run fails loudly instead of silently writing a commentless file.
+          let fixCommentLoss: Diagnostic | undefined;
 
           let source = path === '-' ? await readStdin() : await readFile(path, 'utf8');
 
@@ -921,8 +1092,13 @@ async function main(argv: string[]): Promise<number> {
             const preResult = lint(source, { rules });
             const fixed = applyFixes(source, preResult.diagnostics);
             if (fixed !== source) {
-              await writeFile(path, fixed, 'utf8');
-              source = fixed;
+              const loss = detectCommentLoss(source, fixed);
+              if (loss !== undefined) {
+                fixCommentLoss = loss;
+              } else {
+                await writeFile(path, fixed, 'utf8');
+                source = fixed;
+              }
             }
           }
 
@@ -930,6 +1106,7 @@ async function main(argv: string[]): Promise<number> {
             strict: fileStrict,
             rules,
             checkNetwork: cli.checkNetwork,
+            ...(cli.mockFixtures === undefined ? {} : { mockFixtures: cli.mockFixtures }),
             ...(cli.domain ? { domain: cli.domain } : {}),
             ...otelRuleHook,
           });
@@ -959,12 +1136,21 @@ async function main(argv: string[]): Promise<number> {
                     ? ((fileResult.parsed as Record<string, unknown>).SIGNING_KEY as string)
                     : '';
                 networkDiagnostics.push(
+                  ...(await verifySep10(webAuthEndpoint, signingKey, {
+                    rules,
+                    fetchImpl,
+                    ...(cli.domain === undefined ? {} : { homeDomain: cli.domain }),
+                  })),
                   ...(await checkSep10Replay(signingKey, new URL(webAuthEndpoint).origin, {
                     rules,
                     fetchImpl,
                   })),
                 );
               }
+            }
+
+            if (cli.checkNetwork && cli.mockFixtures === undefined) {
+              networkDiagnostics.push(...(await checkSniFallback(fileResult.parsed, { rules })));
             }
 
             if (cli.auditSecurity && cli.checkNetwork) {
@@ -981,8 +1167,17 @@ async function main(argv: string[]): Promise<number> {
                       ...(cli.domain === undefined ? {} : { domain: cli.domain }),
                     })
                   : []),
+                ...(cli.mockFixtures === undefined
+                  ? await checkSubdomainTakeover(fileResult.parsed, { rules })
+                  : []),
                 ...(cli.auditDiversity && cli.mockFixtures === undefined
                   ? await checkValidatorDiversityFromDocument(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.mockFixtures === undefined
+                  ? await auditOriginExposure(fileResult.parsed, {
+                      rules,
+                      ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                    })
                   : []),
               );
             }
@@ -999,14 +1194,22 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
-            if (cli.verifySep31 && cli.checkNetwork) {
+            if (
+              (cli.verifySep31 || cli.checkNetwork) &&
+              fileResult.parsed?.DIRECT_PAYMENT_SERVER !== undefined
+            ) {
+              if (cli.verifySep31) {
+                networkDiagnostics.push(
+                  ...(await verifySep31(fileResult.parsed, fetchImpl, { rules })),
+                  // Opens a loopback listener for the callback, so hermetic
+                  // fixture runs skip it.
+                  ...(cli.mockFixtures === undefined
+                    ? await verifySep31Webhooks(fileResult.parsed, fetchImpl, { rules })
+                    : []),
+                );
+              }
               networkDiagnostics.push(
-                ...(await verifySep31(fileResult.parsed, fetchImpl, { rules })),
-                // Opens a loopback listener for the callback, so hermetic
-                // fixture runs skip it.
-                ...(cli.mockFixtures === undefined
-                  ? await verifySep31Webhooks(fileResult.parsed, fetchImpl, { rules })
-                  : []),
+                ...(await validateSep31KycMatrix(fileResult.parsed, fetchImpl, { rules })),
               );
             }
 
@@ -1017,6 +1220,7 @@ async function main(argv: string[]): Promise<number> {
             ) {
               networkDiagnostics.push(
                 ...(await verifySep30(fileResult.parsed, fetchImpl, { rules })),
+                ...(await coordinateSep30Recovery(fileResult.parsed, fetchImpl, { rules })),
               );
             }
 
@@ -1044,9 +1248,24 @@ async function main(argv: string[]): Promise<number> {
               );
             }
 
+            if (cli.auditFees && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await checkCrossSepFees(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
             if (cli.verifySep24 && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await verifySep24(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
+            if (cli.verifyPostmessage && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await checkSep24PostMessage(fileResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.postmessageUrl !== undefined ? { url: cli.postmessageUrl } : {}),
+                })),
               );
             }
 
@@ -1065,6 +1284,22 @@ async function main(argv: string[]): Promise<number> {
             if (cli.verifySep24QuoteLock && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await verifySep24QuoteLock(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
+            if (cli.simulateSep24 && cli.checkNetwork) {
+              networkDiagnostics.push(
+                ...(await simulateSep24Lifecycle(fileResult.parsed, fetchImpl, { rules })),
+              );
+            }
+
+            if (cli.checkNetwork || cli.domain !== undefined) {
+              networkDiagnostics.push(
+                ...(await auditMultiTenantRouting(fileResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                  ...(cli.tenantHosts === undefined ? {} : { tenantHosts: cli.tenantHosts }),
+                })),
               );
             }
 
@@ -1101,6 +1336,7 @@ async function main(argv: string[]): Promise<number> {
                 })),
                 ...(await checkFixedSupplyIssuerLocks(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkImmutabilityClaims(fileResult.parsed, fetchImpl, { rules })),
+                ...(await simulateTrustlineFreezing(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkCorsPreflight(fileResult.parsed, fetchImpl, { rules })),
                 // Opens its own sockets, outside the fixture transport.
                 ...(cli.mockFixtures === undefined
@@ -1147,6 +1383,17 @@ async function main(argv: string[]): Promise<number> {
                 ...(await checkHistoryPublish(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkArchiveDiff(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkMpcGovernance(fileResult.parsed, { rules, fetchImpl })),
+                ...(await checkKeyRotation(fileResult.parsed, {
+                  rules,
+                  fetchImpl,
+                  ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                })),
+                ...(cli.auditReserves
+                  ? await checkProofOfReserve(fileResult.parsed, fetchImpl, {
+                      rules,
+                      ...(cli.evmRpc === undefined ? {} : { evmRpcUrl: cli.evmRpc }),
+                    })
+                  : []),
                 ...(cli.verifyBuckets
                   ? await checkBucketIntegrity(fileResult.parsed, fetchImpl, { rules })
                   : []),
@@ -1172,6 +1419,13 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.verifyDnssec
                   ? await checkDnsIntegrity(fileResult.parsed, fetchImpl, {
                       rules,
+                      ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                    })
+                  : []),
+                ...(cli.verifyDnssecChain
+                  ? await verifyDnssecChain(fileResult.parsed, {
+                      rules,
+                      fetchImpl,
                       ...(cli.domain === undefined ? {} : { domain: cli.domain }),
                     })
                   : []),
@@ -1204,6 +1458,9 @@ async function main(argv: string[]): Promise<number> {
                   rules,
                   ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
                 })),
+                ...(cli.checkParity
+                  ? await auditTomlContractParity(fileResult.parsed, fetchImpl, { rules })
+                  : []),
                 ...(await auditTomlContractEvents(fileResult.parsed, fetchImpl, {
                   rules,
                   ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
@@ -1328,15 +1585,57 @@ async function main(argv: string[]): Promise<number> {
             }
           }
 
+          if (fixCommentLoss !== undefined) {
+            fileResult = finalize(
+              [...fileResult.diagnostics, fixCommentLoss],
+              { strict: fileStrict },
+              fileResult.parsed,
+            );
+          }
+
           results.push({
             name: path === '-' ? 'stdin' : path,
             result: fileResult,
           });
+          if (path !== '-') {
+            reviewSources.push({
+              filename: path,
+              source,
+              diagnostics: fileResult.diagnostics,
+            });
+          }
         }
       }
     } catch (error) {
       process.stderr.write(`${message(error)}\n`);
       return 2;
+    }
+
+    // Federation codemod: preview the unified diff, and only touch the file
+    // when the caller asked for it with --write.
+    if (cli.migrateFederation) {
+      const paths = cli.paths.length > 0 ? cli.paths : [DEFAULT_PATH];
+      for (const path of paths) {
+        const filePath = path === '-' ? DEFAULT_PATH : path;
+        try {
+          const source = await readFile(filePath, 'utf8');
+          const upgrade = await upgradeFederationDeclaration(source, {
+            checkNetwork: cli.checkNetwork,
+            fetchImpl,
+            filePath,
+            rules: cli.rules,
+          });
+          process.stdout.write(upgrade.diff);
+          for (const diag of upgrade.diagnostics) {
+            process.stderr.write(`${diag.rule}: ${diag.message}\n`);
+          }
+          if (cli.write && upgrade.changed) {
+            await writeFile(filePath, upgrade.source, 'utf8');
+          }
+        } catch (error) {
+          process.stderr.write(`Federation migration failed for ${filePath}: ${message(error)}\n`);
+        }
+      }
     }
 
     // Code migration: run before reporting
@@ -1581,6 +1880,15 @@ async function main(argv: string[]): Promise<number> {
       }
     }
 
+    if (cli.reportPrReview) {
+      const review = await submitPullRequestReview(reviewSources, { fetchImpl });
+      if (!review.ok) {
+        process.stderr.write(
+          `Warning: GitHub PR review was not posted${review.reason ? `: ${review.reason}` : ''}\n`,
+        );
+      }
+    }
+
     let healthCheckFailed = false;
     if (cli.healthCheck) {
       for (const { result } of results) {
@@ -1745,10 +2053,64 @@ async function formatFiles(cli: Cli): Promise<number> {
 }
 
 /**
- * `--semantic-hash`: one `<sha256>  <name>` line per file, in the layout
- * `sha256sum` uses, so a CI step can compare it against an approved value.
- * `--format json` prints the hashes and canonical forms as one JSON array.
+ * `--format-style [2|4|tabs]`: rewrite each file's indentation into one style,
+ * leaving everything else (comments, ordering, quoting, string contents)
+ * byte-for-byte intact. Invalid TOML is reported and left alone, mirroring
+ * `--format-file`. With `--dry-run` the unified diff is printed and nothing is
+ * written, and `-` streams the normalised document to stdout.
  */
+async function formatStyleFiles(cli: Cli): Promise<number> {
+  if (cli.domain) {
+    process.stderr.write(
+      '--format-style rewrites local files, so it cannot be combined with --domain.\n',
+    );
+    return 2;
+  }
+
+  const style = cli.formatStyle as IndentStyle;
+  const paths = cli.paths.length > 0 ? cli.paths : [DEFAULT_PATH];
+  let failed = false;
+
+  for (const path of paths) {
+    try {
+      const source = path === '-' ? await readStdin() : await readFile(path, 'utf8');
+
+      // Refuse to touch a file whose indentation cannot be interpreted, so a
+      // broken file never gets a half-applied rewrite. `parseCst` is tolerant
+      // but reports errors; a first error means "do not rewrite".
+      const parsed = parseCst(source);
+      if (parsed.errors.length > 0) {
+        const error = parsed.errors[0]!;
+        process.stderr.write(
+          `${path === '-' ? 'stdin' : path}:${error.line}:${error.column}: ${error.message}\n`,
+        );
+        failed = true;
+        continue;
+      }
+
+      const { output, changed } = normalizeIndentation(source, style);
+
+      if (path === '-') {
+        process.stdout.write(output);
+        continue;
+      }
+
+      if (cli.dryRun) {
+        if (changed) process.stdout.write(generateDiff(source, output, path));
+        continue;
+      }
+
+      if (changed) await writeFile(path, output, 'utf8');
+      process.stdout.write(`${changed ? 'Reindented' : 'Unchanged'} ${path}\n`);
+    } catch (error) {
+      process.stderr.write(`${message(error)}\n`);
+      failed = true;
+    }
+  }
+
+  return failed ? 2 : 0;
+}
+
 async function printSemanticHashes(cli: Cli): Promise<number> {
   if (cli.domain && cli.paths.length === 0) {
     process.stderr.write('--semantic-hash hashes local files; pass a path or - for stdin.\n');
@@ -1872,6 +2234,8 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     showHelp: false,
     rules: {},
     checkNetwork: false,
+    auditFees: false,
+    verifyPostmessage: false,
     auditQuorum: false,
     auditDiversity: false,
     followLinks: false,
@@ -1887,6 +2251,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     verifyHistoryGaps: false,
     crawlHistory: false,
     checkContracts: false,
+    checkParity: false,
     simulateSoroban: false,
     sorobanRentAudit: false,
     graphIncludeContracts: false,
@@ -1963,6 +2328,15 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.formatFile = true;
         break;
 
+      case '--format-style': {
+        const value = requireValue(argv, ++i, arg);
+        if (!isIndentStyle(value)) {
+          throw new Error(`Unknown indentation style "${value}". Expected 2, 4, or tabs.`);
+        }
+        cli.formatStyle = value;
+        break;
+      }
+
       case '--semantic-hash':
         cli.semanticHash = true;
         break;
@@ -1986,9 +2360,23 @@ function parseArgs(argv: string[]): Cli | 'handled' {
       }
 
       case '--diff': {
-        const base = requireValue(argv, ++i, arg);
-        const target = requireValue(argv, ++i, arg);
-        cli.diff = { base, target };
+        const first = requireValue(argv, ++i, arg);
+        const second = argv[i + 1];
+        if (second !== undefined && !second.startsWith('-')) {
+          i++;
+          cli.diff = { base: first, target: second };
+        } else {
+          cli.diff = { target: first };
+        }
+        break;
+      }
+
+      case '--diff-style': {
+        const value = requireValue(argv, ++i, arg);
+        if (value !== 'unified' && value !== 'side-by-side') {
+          throw new Error(`Unknown diff style "${value}". Expected unified or side-by-side.`);
+        }
+        cli.diffStyle = value;
         break;
       }
 
@@ -2027,6 +2415,25 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.checkNetwork = true;
         break;
 
+      case '--audit-fees':
+        cli.auditFees = true;
+        cli.checkNetwork = true;
+        break;
+
+      case '--verify-postmessage':
+        cli.verifyPostmessage = true;
+        cli.checkNetwork = true;
+        break;
+
+      case '--postmessage-url': {
+        const value = requireValue(argv, ++i, arg);
+        if (!isUrl(value)) {
+          throw new Error('--postmessage-url expects an http or https URL.');
+        }
+        cli.postmessageUrl = value;
+        break;
+      }
+
       case '--check-ipv6':
         cli.checkIpv6 = true;
         break;
@@ -2058,6 +2465,11 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         break;
       }
 
+      case '--tenant-host':
+        cli.tenantHosts ??= [];
+        cli.tenantHosts.push(requireValue(argv, ++i, arg));
+        break;
+
       case '--audit-quorum':
         cli.auditQuorum = true;
         break;
@@ -2084,6 +2496,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--audit-security':
         cli.auditSecurity = true;
+        break;
+
+      case '--audit-reserves':
+        cli.auditReserves = true;
         break;
 
       case '--verify-sep6':
@@ -2118,6 +2534,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.verifySep24QuoteLock = true;
         break;
 
+      case '--simulate-sep24':
+        cli.simulateSep24 = true;
+        break;
+
       case '--verify-clawback':
         cli.verifyClawback = true;
         break;
@@ -2150,12 +2570,24 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.verifyDnssec = true;
         break;
 
+      case '--verify-dnssec-chain':
+        cli.verifyDnssecChain = true;
+        break;
+
+      case '--report-pr-review':
+        cli.reportPrReview = true;
+        break;
+
       case '--follow-links':
         cli.followLinks = true;
         break;
 
       case '--check-contracts':
         cli.checkContracts = true;
+        break;
+
+      case '--check-parity':
+        cli.checkParity = true;
         break;
 
       case '--rpc-url':
@@ -2400,6 +2832,14 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         break;
       }
 
+      case '--migrate-federation':
+        cli.migrateFederation = true;
+        break;
+
+      case '--write':
+        cli.write = true;
+        break;
+
       case '--fix':
         cli.fix = true;
         break;
@@ -2436,10 +2876,8 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     cli.rules = { ...PRESETS[cli.preset].rules, ...cli.rules };
   }
 
-  if (cli.graphQuorumFormat !== undefined) {
-    // `--format` may appear before or after `--graph-quorum`; resolve it once
-    // both have been parsed so either order selects the requested renderer.
-    cli.graphQuorum = cli.graphQuorum === undefined ? cli.graphQuorumFormat : cli.graphQuorum;
+  if (cli.checkParity && !cli.checkNetwork) {
+    throw new Error('--check-parity requires --check-network.');
   }
 
   return cli;
@@ -2757,6 +3195,7 @@ async function watchFiles(
           paths: changedPaths,
           checkNetwork: false,
           checkContracts: false,
+          checkParity: false,
           followLinks: false,
         },
         color,

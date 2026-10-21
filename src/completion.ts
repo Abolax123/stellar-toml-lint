@@ -87,6 +87,11 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--quiet', short: '-q', description: 'Report errors only' },
   { long: '--count', description: 'Print only problem count totals' },
   {
+    long: '--format-style',
+    description: "Rewrite a file's indentation as 2 spaces, 4 spaces, or tabs",
+    values: ['2', '4', 'tabs'],
+  },
+  {
     long: '--semantic-hash',
     description: 'Print a SHA-256 of the data, ignoring formatting and comments',
   },
@@ -104,7 +109,9 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--audit-diversity', description: 'Flag ASN/geographic validator concentration' },
   { long: '--verify-sep10', description: 'Verify SEP-10 nonce replay resistance' },
   { long: '--audit-security', description: 'Audit token binding, TLS, and CAA security' },
+  { long: '--audit-reserves', description: 'Compare collateral reserves with Stellar supply' },
   { long: '--verify-sep6', description: 'Run SEP-6 programmatic integration tester' },
+  { long: '--verify-sep30', description: 'Coordinate multi-party recovery signing' },
   { long: '--verify-sep31', description: 'Audit SEP-31 cross-border payment lifecycle' },
   { long: '--verify-sep38', description: 'Audit SEP-38 quotes, spreads, and expirations' },
   { long: '--crawl-peers', description: 'Discover and audit overlay peers' },
@@ -120,6 +127,7 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--verify-overlay', description: 'Handshake with each validator over the overlay' },
   { long: '--verify-dnssec', description: 'Compare DNSSEC-validating DNS resolvers' },
   { long: '--check-contracts', description: 'Verify Soroban contracts on chain' },
+  { long: '--check-parity', description: 'Compare contracts across networks' },
   { long: '--rpc-url', description: 'Soroban RPC endpoint', takesValue: true },
   { long: '--soroban-rpc', description: 'Soroban RPC endpoint (alias)', takesValue: true },
   { long: '--simulate-soroban', description: 'Dry-run SEP-41 calls against Soroban RPC' },
@@ -201,6 +209,12 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--help', short: '-h', description: 'Print usage' },
   { long: '--fix', description: 'Apply safe autofixes to files' },
   { long: '--dry-run', description: 'Preview autofix or migration diff without modifying files' },
+  { long: '--diff', description: 'Compare two versions for breaking changes', takesValue: true },
+  {
+    long: '--diff-style',
+    description: 'Render --diff as unified or side-by-side',
+    values: ['unified', 'side-by-side'],
+  },
 ];
 
 /** Rule-override flags, which complete to the registered rule ids. */

@@ -19,6 +19,7 @@ import { maxDecimalsRules } from './max-decimals.js';
 import { horizonRules } from './horizon-check.js';
 import { sep3Rules } from './sep3-auth.js';
 import { sep38Rules } from './sep38-endpoints.js';
+import { crossSepFeeRules } from './cross-sep-fee-auditor.js';
 import { orgUrlRules } from './org-url-check.js';
 import { imageAssetRules } from './image-assets.js';
 import { sorobanRules } from '../soroban.js';
@@ -45,7 +46,13 @@ import { dnsIntegrityRules } from '../security/dns-integrity.js';
 import { corpHeaderRules } from '../security/corp-auditor.js';
 import { mpcGovernanceRules } from '../security/mpc-governance.js';
 import { hstsAuditorRules } from '../security/hsts-auditor.js';
-import { dmarcAuditorRules, caaAuditorRules, tlsPfsAuditorRules } from '../security/index.js';
+import {
+  dmarcAuditorRules,
+  caaAuditorRules,
+  tlsPfsAuditorRules,
+  sniAuditorRules,
+  subdomainTakeoverRules,
+} from '../security/index.js';
 import { certExpiryRules } from '../network/cert-expiry.js';
 import { bgpRouteDetectorRules } from '../network/bgp-route-detector.js';
 import { ipv6AuditorRules } from '../network/ipv6-auditor.js';
@@ -62,11 +69,17 @@ import { sep7Rules } from '../protocols/sep7.js';
 import { sep6IntegrationRules } from '../protocols/sep6.js';
 import { sep31Rules } from '../protocols/sep31.js';
 import { sep31WebhookRules } from '../protocols/sep31-webhook-verifier.js';
+import { sep31KycRules } from '../protocols/sep31-kyc-matrix.js';
+import { sep30Rules } from '../protocols/sep30.js';
+import { sep30CoordinatorRules } from '../protocols/sep30-coordinator.js';
 import { sep8Rules } from '../protocols/sep8.js';
 import { sep38QuoteRules } from '../protocols/sep38.js';
 import { sep24Rules } from '../protocols/sep24.js';
+import { sep24LifecycleRules } from '../protocols/sep24-lifecycle.js';
+import { multiTenantRules } from '../network/multi-tenant.js';
 import { wasmAuditorRules } from '../soroban/wasm-auditor.js';
 import { envMetaRules } from '../soroban/env-meta.js';
+import { parityRules } from '../soroban/parity-verifier.js';
 import { eventRules } from '../soroban/events.js';
 import { adminAuditorRules } from '../soroban/admin-auditor.js';
 import { simulationRules } from '../soroban/simulation.js';
@@ -74,6 +87,7 @@ import { storageFootprintRules } from '../soroban/storage-footprint.js';
 import { authAuditorRules } from '../soroban/auth-auditor.js';
 import { instanceStorageAuditorRules } from '../soroban/instance-storage-auditor.js';
 import { insecureHttpRule } from './insecure-http.js';
+import { deadCodeRules } from './dead-code.js';
 import { multisigRules } from '../security/multisig.js';
 import { ipfsMetadataRules } from '../validators/ipfsMetadata.js';
 import { sep8WebhookRules } from '../sep8/webhookCoordinator.js';
@@ -85,10 +99,12 @@ import { corridorRoutingRules } from '../corridors/routingVerifier.js';
 import { redosDetectorRules } from './redos-detector.js';
 import { overlayDosRules } from '../overlay/dos-tester.js';
 import { topologyAnalyzerRules } from '../overlay/topology-analyzer.js';
+import { styleRules } from './style.js';
 
 /** Every rule, in report order. */
 export const allRules: Rule[] = [
   ...generalRules,
+  ...deadCodeRules,
   insecureHttpRule,
   ...deprecationRules,
   ...sep10Rules,
@@ -111,6 +127,7 @@ export const allRules: Rule[] = [
   ...horizonRules,
   ...sep3Rules,
   ...sep38Rules,
+  ...crossSepFeeRules,
   ...corridorRoutingRules,
   ...bridgeReserveRules,
   ...orgUrlRules,
@@ -119,6 +136,7 @@ export const allRules: Rule[] = [
   ...contractMetadataRules,
   ...wasmAuditorRules,
   ...envMetaRules,
+  ...parityRules,
   ...eventRules,
   ...adminAuditorRules,
   ...simulationRules,
@@ -132,12 +150,16 @@ export const allRules: Rule[] = [
   ...sep12Rules,
   ...sep6Rules,
   ...sep6IntegrationRules,
+  ...sep30Rules,
+  ...sep30CoordinatorRules,
   ...sep31Rules,
   ...sep31WebhookRules,
+  ...sep31KycRules,
   ...sep8Rules,
   ...sep8WebhookRules,
   ...sep38QuoteRules,
   ...sep24Rules,
+  ...sep24LifecycleRules,
   ...sep7Rules,
   ...corsPreflightRules,
   ...overlayCrawlerRules,
@@ -158,6 +180,8 @@ export const allRules: Rule[] = [
   ...dmarcAuditorRules,
   ...caaAuditorRules,
   ...tlsPfsAuditorRules,
+  ...sniAuditorRules,
+  ...subdomainTakeoverRules,
   ...bgpRouteDetectorRules,
   ...certExpiryRules,
   ...hstsAuditorRules,
@@ -175,6 +199,7 @@ export const allRules: Rule[] = [
   ...ipfsMetadataRules,
   ...accountDataAuditorRules,
   ...redosDetectorRules,
+  ...styleRules,
 ];
 
 /** Rule ids, sorted, for `--list-rules` and docs generation. */
@@ -199,6 +224,7 @@ export {
   horizonRules,
   sep3Rules,
   sep38Rules,
+  crossSepFeeRules,
   imageAssetRules,
   sorobanRules,
   sorobanErrorRules,
@@ -233,13 +259,19 @@ export {
   testnetContractRules,
   sep7Rules,
   sep6IntegrationRules,
+  sep30Rules,
+  sep30CoordinatorRules,
   sep31Rules,
   sep31WebhookRules,
+  sep31KycRules,
   sep8Rules,
   sep38QuoteRules,
   sep24Rules,
+  sep24LifecycleRules,
+  multiTenantRules,
   wasmAuditorRules,
   envMetaRules,
+  parityRules,
   eventRules,
   adminAuditorRules,
   simulationRules,
@@ -255,4 +287,8 @@ export {
   bridgeReserveRules,
   corridorRoutingRules,
   redosDetectorRules,
+  corpHeaderRules,
+  mpcGovernanceRules,
+  hstsAuditorRules,
+  styleRules,
 };
