@@ -97,6 +97,23 @@ export { fix, type TextEdit, type FixResult } from './fix.js';
 export { probeTls } from './tls.js';
 export type { TlsProbe } from './tls.js';
 export {
+  checkSniFallback,
+  sniHandshakeProbe,
+  sniAuditorRules,
+  SECURITY_SNI_FALLBACK_INFORMATION_LEAK,
+} from './security/sni-auditor.js';
+export type { SniCertificateInfo, SniProbe } from './security/sni-auditor.js';
+export {
+  checkSubdomainTakeover,
+  subdomainTakeoverRules,
+  DEFAULT_TAKEOVER_PATTERNS,
+  SECURITY_DANGLING_CNAME_TAKEOVER_RISK,
+} from './security/subdomain-takeover.js';
+export type {
+  CnameTargetPattern,
+  SubdomainTakeoverOptions,
+} from './security/subdomain-takeover.js';
+export {
   checkPeerPortReachability,
   probeTcpPort,
   validatorHostsOf,

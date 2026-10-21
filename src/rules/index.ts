@@ -45,7 +45,13 @@ import { dnsIntegrityRules } from '../security/dns-integrity.js';
 import { corpHeaderRules } from '../security/corp-auditor.js';
 import { mpcGovernanceRules } from '../security/mpc-governance.js';
 import { hstsAuditorRules } from '../security/hsts-auditor.js';
-import { dmarcAuditorRules, caaAuditorRules, tlsPfsAuditorRules } from '../security/index.js';
+import {
+  dmarcAuditorRules,
+  caaAuditorRules,
+  tlsPfsAuditorRules,
+  sniAuditorRules,
+  subdomainTakeoverRules,
+} from '../security/index.js';
 import { certExpiryRules } from '../network/cert-expiry.js';
 import { bgpRouteDetectorRules } from '../network/bgp-route-detector.js';
 import { ipv6AuditorRules } from '../network/ipv6-auditor.js';
@@ -167,6 +173,8 @@ export const allRules: Rule[] = [
   ...dmarcAuditorRules,
   ...caaAuditorRules,
   ...tlsPfsAuditorRules,
+  ...sniAuditorRules,
+  ...subdomainTakeoverRules,
   ...bgpRouteDetectorRules,
   ...certExpiryRules,
   ...hstsAuditorRules,

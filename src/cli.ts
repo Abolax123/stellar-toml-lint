@@ -21,6 +21,8 @@ import { auditBgpRoutes } from './network/bgp-route-detector.js';
 import { checkRateLimitResilience } from './network/rate-limit-tester.js';
 import { horizonUrlFor } from './network-checks.js';
 import { checkSignatureStateMachineFromDocument } from './security/signature-state-machine.js';
+import { checkSniFallback } from './security/sni-auditor.js';
+import { checkSubdomainTakeover } from './security/subdomain-takeover.js';
 import { checkPeerPortReachability } from './validators/net-probe.js';
 import {
   formatCheckstyle,
@@ -406,8 +408,8 @@ OPTIONS
                           enables the multi-tenant host-header isolation audit
                           under --check-network (repeatable)
       --verify-sep10      Verify SEP-10 nonce uniqueness and replay resistance
-      --audit-security    Audit token binding and CAA policy for declared
-              service endpoints
+      --audit-security    Audit token binding, CAA, SNI fallback, and dangling
+              CNAME risks for service endpoints
       --audit-reserves    With --check-network: compare external-chain collateral
                           reserve balances against Stellar circulating supply
       --verify-sep6       Run end-to-end programmatic SEP-6 integration tester
@@ -755,6 +757,12 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.auditSecurity && cli.mockFixtures === undefined
               ? await auditCaa(domainResult.parsed, { rules, domain: cli.domain })
               : []),
+            ...(cli.checkNetwork && cli.mockFixtures === undefined
+              ? await checkSniFallback(domainResult.parsed, { rules })
+              : []),
+            ...(cli.auditSecurity && cli.mockFixtures === undefined
+              ? await checkSubdomainTakeover(domainResult.parsed, { rules })
+              : []),
             ...(await checkSigningKeyRevocation(domainResult.parsed, { rules, fetchImpl })),
             ...(await checkSigningKeyMultisig(domainResult.parsed, { rules, fetchImpl })),
             ...(await checkMpcGovernance(domainResult.parsed, { rules, fetchImpl })),
@@ -1055,6 +1063,10 @@ async function main(argv: string[]): Promise<number> {
               }
             }
 
+            if (cli.checkNetwork && cli.mockFixtures === undefined) {
+              networkDiagnostics.push(...(await checkSniFallback(fileResult.parsed, { rules })));
+            }
+
             if (cli.auditSecurity && cli.checkNetwork) {
               networkDiagnostics.push(
                 ...(await checkTokenBinding(fileResult.parsed, fetchImpl, {
@@ -1068,6 +1080,9 @@ async function main(argv: string[]): Promise<number> {
                       rules,
                       ...(cli.domain === undefined ? {} : { domain: cli.domain }),
                     })
+                  : []),
+                ...(cli.mockFixtures === undefined
+                  ? await checkSubdomainTakeover(fileResult.parsed, { rules })
                   : []),
                 ...(cli.auditDiversity && cli.mockFixtures === undefined
                   ? await checkValidatorDiversityFromDocument(fileResult.parsed, { rules })

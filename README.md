@@ -190,7 +190,7 @@ Exit codes: **0** no errors, **1** problems found, **2** bad usage or I/O failur
 | `--check-network`           | Verify accounts, `HORIZON_URL`, SEP-8 flags, `ANCHOR_QUOTE_SERVER`, and SEP-6 `/info` online                            |
 | `--verify-sep10`            | Verify SEP-10 nonce uniqueness and replay resistance (requires `--check-network`)                                       |
 | `--audit-routing`           | Compare host announcements with public RPKI route data (requires `--check-network`)                                     |
-| `--audit-security`          | Audit token binding and CAA endpoint policy (requires `--check-network`)                                                |
+| `--audit-security`          | Audit token binding, CAA policy, and dangling CNAMEs (requires `--check-network`)                                       |
 | `--audit-reserves`          | Compare external-chain collateral reserves with Stellar circulating supply (requires `--check-network`)                 |
 | `--audit-routing`           | Compare host announcements with public RPKI route data (requires `--check-network`)                                     |
 | `--verify-sep6`             | Run end-to-end programmatic SEP-6 integration tester (requires `--check-network`)                                       |
@@ -2276,6 +2276,13 @@ domain and declared HTTPS endpoints and compares active certificate issuers with
 emits `security/missing-caa-records` (warning); an unauthorized issuer emits
 `security/unauthorized-issuing-ca` (error).
 
+**TLS SNI fallback and subdomain takeover auditors** — With `--check-network`, the SNI probe connects to declared
+HTTPS hosts with and without SNI, and flags internal names or private IP addresses in fallback certificates as
+`security/sni-fallback-information-leak` (warning). With `--check-network --audit-security`, the takeover auditor
+resolves declared endpoint and documentation hostnames, checks known S3, GitHub Pages, and Heroku CNAME targets for
+provider-specific unclaimed-resource responses, and emits `security/dangling-cname-takeover-risk` (error). Network
+failures alone are not treated as findings.
+
 **BGP route and RPKI auditor** (with `--check-network --audit-routing`) — Resolves the anchor domain and declared
 service endpoint addresses, retrieves announced prefixes and origin ASNs from RIPEstat, and checks their ROA state.
 An invalid origin emits `network/rpki-invalid-route` (error); a missing or unknown ROA state emits
@@ -2887,6 +2894,21 @@ New contributors are genuinely welcome — see [CONTRIBUTING.md](./CONTRIBUTING.
 matter of appending one object to a list and one fixture to a test.
 
 ## Integrations
+
+### Docker image
+
+The multi-architecture image is published to `ghcr.io/anchor-tools/stellar-toml-lint` for `linux/amd64` and
+`linux/arm64`. Release images are signed with Cosign using GitHub Actions OIDC. Run it with:
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/anchor-tools/stellar-toml-lint:latest stellar.toml
+```
+
+### CircleCI Orb
+
+The Orb at [integrations/circleci/orb.yml](./integrations/circleci/orb.yml) provides `lint` and `network-audit` jobs.
+Both cache the CLI installation, publish JUnit test results, and store SARIF reports as CircleCI artifacts. Orb releases
+are validated and published from `circleci-orb-v*` tags; configure `CIRCLECI_CLI_TOKEN` in repository secrets.
 
 ### VS Code extension
 
