@@ -60,6 +60,7 @@ import { checkCorridorRouting } from './corridors/routingVerifier.js';
 import { checkHistoryArchives } from './validators/historyArchive.js';
 import { checkBridgeReserves } from './validators/bridgeReserve.js';
 import { auditTomlContractEnvMeta } from './soroban/env-meta.js';
+import { auditTomlContractParity } from './soroban/parity-verifier.js';
 import { auditTomlContractEvents } from './soroban/events.js';
 import { auditTomlContractAdmins } from './soroban/admin-auditor.js';
 import { auditTomlContractSimulation } from './soroban/simulation.js';
@@ -284,6 +285,7 @@ interface Cli {
   interactive?: boolean;
   exploreRules?: boolean;
   checkContracts: boolean;
+  checkParity: boolean;
   sorobanRpc?: string;
   evmRpc?: string;
   simulateSoroban?: boolean;
@@ -481,6 +483,9 @@ OPTIONS
                           (implied by --domain)
       --check-contracts   Verify that Soroban contracts are deployed on chain, that
                           their WASM is not evicted, and that their TTL is live
+      --check-parity      With --check-network: compare declared contracts' WASM
+                          hashes and exported interfaces across Mainnet, Testnet,
+                          and Futurenet
       --rpc-url <url>     Soroban RPC endpoint to use with --check-contracts
                           (defaults from NETWORK_PASSPHRASE; alias --soroban-rpc)
       --evm-rpc <url>     EVM JSON-RPC endpoint to use with --check-network for
@@ -732,6 +737,7 @@ async function main(argv: string[]): Promise<number> {
             strict,
             rules,
             checkNetwork: cli.checkNetwork,
+            ...(cli.mockFixtures === undefined ? {} : { mockFixtures: cli.mockFixtures }),
             followLinks: true,
             ...otelRuleHook,
           },
@@ -968,6 +974,9 @@ async function main(argv: string[]): Promise<number> {
               rules,
               ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
             })),
+            ...(cli.checkParity
+              ? await auditTomlContractParity(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(await auditTomlContractEvents(domainResult.parsed, fetchImpl, {
               rules,
               ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
@@ -1072,6 +1081,7 @@ async function main(argv: string[]): Promise<number> {
             strict: fileStrict,
             rules,
             checkNetwork: cli.checkNetwork,
+            ...(cli.mockFixtures === undefined ? {} : { mockFixtures: cli.mockFixtures }),
             ...(cli.domain ? { domain: cli.domain } : {}),
             ...otelRuleHook,
           });
@@ -1416,6 +1426,9 @@ async function main(argv: string[]): Promise<number> {
                   rules,
                   ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
                 })),
+                ...(cli.checkParity
+                  ? await auditTomlContractParity(fileResult.parsed, fetchImpl, { rules })
+                  : []),
                 ...(await auditTomlContractEvents(fileResult.parsed, fetchImpl, {
                   rules,
                   ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
@@ -2197,6 +2210,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     verifyBuckets: false,
     verifyHistoryGaps: false,
     checkContracts: false,
+    checkParity: false,
     simulateSoroban: false,
     sorobanRentAudit: false,
     graphIncludeContracts: false,
@@ -2521,6 +2535,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.checkContracts = true;
         break;
 
+      case '--check-parity':
+        cli.checkParity = true;
+        break;
+
       case '--rpc-url':
       case '--soroban-rpc':
         cli.sorobanRpc = requireValue(argv, ++i, arg);
@@ -2783,6 +2801,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     // was typed before or after `--preset`: the preset is a baseline, and the
     // command line is the intent for this run.
     cli.rules = { ...PRESETS[cli.preset].rules, ...cli.rules };
+  }
+
+  if (cli.checkParity && !cli.checkNetwork) {
+    throw new Error('--check-parity requires --check-network.');
   }
 
   return cli;
@@ -3100,6 +3122,7 @@ async function watchFiles(
           paths: changedPaths,
           checkNetwork: false,
           checkContracts: false,
+          checkParity: false,
           followLinks: false,
         },
         color,
