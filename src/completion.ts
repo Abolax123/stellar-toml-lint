@@ -113,6 +113,10 @@ const FLAGS: readonly FlagSpec[] = [
     long: '--verify-history-gaps',
     description: 'Check every recent archive checkpoint is downloadable',
   },
+  {
+    long: '--crawl-history',
+    description: 'Crawl previous HAS checkpoints and verify the ledger hash chain',
+  },
   { long: '--verify-overlay', description: 'Handshake with each validator over the overlay' },
   { long: '--verify-dnssec', description: 'Compare DNSSEC-validating DNS resolvers' },
   { long: '--check-contracts', description: 'Verify Soroban contracts on chain' },
@@ -163,6 +167,16 @@ const FLAGS: readonly FlagSpec[] = [
   },
   { long: '--graph-validators', description: 'Include validators in the diagram' },
   { long: '--graph-color', description: 'Color diagram nodes by protocol type' },
+  {
+    long: '--graph-quorum',
+    description: 'Render declared quorum slices as ascii, mermaid, or svg',
+    values: ['ascii', 'mermaid', 'svg'],
+  },
+  {
+    long: '--graph-quorum-format',
+    description: 'Select the quorum graph renderer',
+    values: ['ascii', 'mermaid', 'svg'],
+  },
   { long: '--policy', description: 'Evaluate an enterprise policy file', takesValue: true },
   { long: '--json-schema', description: 'Print a JSON Schema for stellar.toml' },
   { long: '--color', description: 'Force colour on' },

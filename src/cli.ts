@@ -96,12 +96,15 @@ import { checkArchiveDiff } from './history/archive-diff.js';
 import { checkBucketIntegrity } from './history/bucket-auditor.js';
 import { checkBucketStreams } from './history/bucket-stream-validator.js';
 import { checkHistoryGaps } from './history/gap-auditor.js';
+import { checkHistoryChain } from './history/chain-crawler.js';
 import {
   auditQuorumSets,
   formatQuorumSummaryTable,
   simulateQuorumBft,
 } from './validators/quorum.js';
 import { checkSplitBrain } from './validators/split-brain-solver.js';
+import { checkByzantineResilience } from './validators/byzantine-simulator.js';
+import { checkValidatorTelemetry } from './validators/telemetry-auditor.js';
 import { checkDnsIntegrity } from './security/dns-integrity.js';
 import { checkHsts } from './security/hsts-auditor.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
@@ -131,6 +134,11 @@ import {
 import { generateOpenApiSpec } from './generators/openapi.js';
 import { formatJsonLd, generateJsonLd, validateJsonLd } from './generators/jsonld.js';
 import { generateDiagram, type GraphFormat } from './generators/diagram.js';
+import {
+  generateQuorumGraph,
+  isQuorumGraphFormat,
+  type QuorumGraphFormat,
+} from './ui/quorum-graph.js';
 import { deliverWebhooks, isSupportedWebhookUrl } from './reporters/webhook.js';
 import { runHealthCheck, formatHealthCheckTable } from './health-check.js';
 import { runDashboard, supportsDashboard } from './ui/dashboard.js';
@@ -245,6 +253,7 @@ interface Cli {
   verifyOverlay: boolean;
   verifyBuckets: boolean;
   verifyHistoryGaps: boolean;
+  crawlHistory: boolean;
   badgeSvg?: string;
   badgeJson?: string;
   exportApConfig?: boolean;
@@ -264,6 +273,8 @@ interface Cli {
   graphIncludeContracts?: boolean;
   graphIncludeValidators?: boolean;
   graphColorByProtocol?: boolean;
+  graphQuorum?: QuorumGraphFormat;
+  graphQuorumFormat?: QuorumGraphFormat;
   policy?: string;
   mockFixtures?: string;
   lsp?: boolean;
@@ -403,6 +414,9 @@ OPTIONS
       --verify-history-gaps
                           With --check-network: confirm every 64-ledger checkpoint
                           across the last 10,000 archived ledgers is downloadable
+      --crawl-history     With --check-network: crawl the previous ten HAS
+                          checkpoints and verify the 64-ledger sequence and
+                          parent ledger hashes
       --verify-overlay    With --check-network: complete the overlay TCP handshake
                           with each [[VALIDATORS]] HOST and check its network,
                           node ID, and protocol version, then derive HKDF
@@ -450,6 +464,10 @@ OPTIONS
                           NETWORK_PASSPHRASE)
       --graph-validators  Include validators in diagram
       --graph-color       Color nodes by protocol type
+      --graph-quorum [fmt]
+                          Render the declared quorum slices as an ascii (default),
+                          mermaid, or svg graph; --format also accepts those values
+
       --policy <file>     Evaluate enterprise policy file (JSON or YAML)
        --json-schema       Print a JSON Schema (Draft 2020-12) for stellar.toml
                            to stdout, for editor autocompletion via schema
@@ -662,12 +680,19 @@ async function main(argv: string[]): Promise<number> {
             ...(cli.verifyHistoryGaps
               ? await checkHistoryGaps(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.crawlHistory
+              ? await checkHistoryChain(domainResult.parsed, fetchImpl, { rules })
+              : []),
             ...(cli.auditQuorum || cli.auditSecurity
               ? await auditQuorumSets(domainResult.parsed, fetchImpl, { rules })
               : []),
             ...(cli.auditQuorum
               ? await checkSplitBrain(domainResult.parsed, fetchImpl, { rules })
               : []),
+            ...(cli.auditQuorum
+              ? await checkByzantineResilience(domainResult.parsed, fetchImpl, { rules })
+              : []),
+            ...(await checkValidatorTelemetry(domainResult.parsed, fetchImpl, { rules })),
             ...(cli.verifyDnssec
               ? await checkDnsIntegrity(domainResult.parsed, fetchImpl, {
                   rules,
@@ -1131,12 +1156,19 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.verifyHistoryGaps
                   ? await checkHistoryGaps(fileResult.parsed, fetchImpl, { rules })
                   : []),
+                ...(cli.crawlHistory
+                  ? await checkHistoryChain(fileResult.parsed, fetchImpl, { rules })
+                  : []),
                 ...(cli.auditQuorum || cli.auditSecurity
                   ? await auditQuorumSets(fileResult.parsed, fetchImpl, { rules })
                   : []),
                 ...(cli.auditQuorum
                   ? await checkSplitBrain(fileResult.parsed, fetchImpl, { rules })
                   : []),
+                ...(cli.auditQuorum
+                  ? await checkByzantineResilience(fileResult.parsed, fetchImpl, { rules })
+                  : []),
+                ...(await checkValidatorTelemetry(fileResult.parsed, fetchImpl, { rules })),
                 ...(cli.verifyDnssec
                   ? await checkDnsIntegrity(fileResult.parsed, fetchImpl, {
                       rules,
@@ -1395,6 +1427,14 @@ async function main(argv: string[]): Promise<number> {
         colorByProtocol: cli.graphColorByProtocol,
       });
       process.stdout.write(diagram + '\n');
+    }
+
+    if (cli.graphQuorum !== undefined && firstResult?.parsed) {
+      const diagram = await generateQuorumGraph(firstResult.parsed, {
+        format: cli.graphQuorum,
+        fetchImpl,
+      });
+      process.stdout.write(diagram);
     }
 
     if (cli.contractGraph !== undefined && firstResult?.parsed) {
@@ -1845,6 +1885,7 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     verifyOverlay: false,
     verifyBuckets: false,
     verifyHistoryGaps: false,
+    crawlHistory: false,
     checkContracts: false,
     simulateSoroban: false,
     sorobanRentAudit: false,
@@ -1929,9 +1970,15 @@ function parseArgs(argv: string[]): Cli | 'handled' {
       case '-f':
       case '--format': {
         const value = requireValue(argv, ++i, arg);
+        // `--format ascii|svg|mermaid` is the issue's spelling for selecting a
+        // quorum-graph renderer; keep the ordinary reporter format untouched.
+        if (isQuorumGraphFormat(value)) {
+          cli.graphQuorumFormat = value;
+          break;
+        }
         if (!isFormat(value)) {
           throw new Error(
-            `Unknown format "${value}". Expected text, summary, json, ndjson, sarif, github, junit, html, checkstyle, markdown, or pr-comment.`,
+            `Unknown format "${value}". Expected text, summary, json, ndjson, sarif, github, junit, html, checkstyle, markdown, pr-comment, ascii, svg, or mermaid.`,
           );
         }
         cli.format = value;
@@ -2095,6 +2142,10 @@ function parseArgs(argv: string[]): Cli | 'handled' {
         cli.verifyHistoryGaps = true;
         break;
 
+      case '--crawl-history':
+        cli.crawlHistory = true;
+        break;
+
       case '--verify-dnssec':
         cli.verifyDnssec = true;
         break;
@@ -2170,6 +2221,28 @@ function parseArgs(argv: string[]): Cli | 'handled' {
           throw new Error(`Unknown contract graph format "${value}". Expected json or mermaid.`);
         }
         cli.contractGraph = value;
+        break;
+      }
+
+      case '--graph-quorum': {
+        const next = argv[i + 1];
+        if (next !== undefined && isQuorumGraphFormat(next)) {
+          cli.graphQuorum = next;
+          i++;
+        } else {
+          cli.graphQuorum = 'ascii';
+        }
+        break;
+      }
+
+      case '--graph-quorum-format': {
+        const value = requireValue(argv, ++i, arg);
+        if (!isQuorumGraphFormat(value)) {
+          throw new Error(
+            `Unknown quorum graph format "${value}". Expected ascii, mermaid, or svg.`,
+          );
+        }
+        cli.graphQuorumFormat = value;
         break;
       }
 
@@ -2361,6 +2434,12 @@ function parseArgs(argv: string[]): Cli | 'handled' {
     // was typed before or after `--preset`: the preset is a baseline, and the
     // command line is the intent for this run.
     cli.rules = { ...PRESETS[cli.preset].rules, ...cli.rules };
+  }
+
+  if (cli.graphQuorumFormat !== undefined) {
+    // `--format` may appear before or after `--graph-quorum`; resolve it once
+    // both have been parsed so either order selects the requested renderer.
+    cli.graphQuorum = cli.graphQuorum === undefined ? cli.graphQuorumFormat : cli.graphQuorum;
   }
 
   return cli;
