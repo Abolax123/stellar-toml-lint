@@ -74,6 +74,8 @@ import { sep30CoordinatorRules } from '../protocols/sep30-coordinator.js';
 import { sep8Rules } from '../protocols/sep8.js';
 import { sep38QuoteRules } from '../protocols/sep38.js';
 import { sep24Rules } from '../protocols/sep24.js';
+import { sep24LifecycleRules } from '../protocols/sep24-lifecycle.js';
+import { multiTenantRules } from '../network/multi-tenant.js';
 import { wasmAuditorRules } from '../soroban/wasm-auditor.js';
 import { envMetaRules } from '../soroban/env-meta.js';
 import { eventRules } from '../soroban/events.js';
@@ -151,6 +153,7 @@ export const allRules: Rule[] = [
   ...sep8WebhookRules,
   ...sep38QuoteRules,
   ...sep24Rules,
+  ...sep24LifecycleRules,
   ...sep7Rules,
   ...corsPreflightRules,
   ...overlayCrawlerRules,
@@ -255,6 +258,8 @@ export {
   sep8Rules,
   sep38QuoteRules,
   sep24Rules,
+  sep24LifecycleRules,
+  multiTenantRules,
   wasmAuditorRules,
   envMetaRules,
   eventRules,
