@@ -25,12 +25,16 @@ describe('package metadata', () => {
     // nothing to the install: @stellar/stellar-base already depends on them.
     // @yao-pkg/pkg is what scripts/build-binaries.mjs packs the release
     // binaries with, so it ships as a regular dependency too. pdfmake backs
-    // the browser PDF compliance report exporter.
+    // the browser PDF compliance report exporter. @relaycorp/dnssec and
+    // dohdec back the DNSSEC chain-of-trust verifier
+    // (src/security/dnssec-chain-node.ts, --verify-dnssec-chain).
     expect(Object.keys(pkg.dependencies).sort()).toEqual([
       '@noble/curves',
       '@noble/hashes',
+      '@relaycorp/dnssec',
       '@stellar/stellar-base',
       '@yao-pkg/pkg',
+      'dohdec',
       'jszip',
       'pdfmake',
       'smol-toml',
