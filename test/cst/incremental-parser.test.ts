@@ -172,19 +172,37 @@ describe('IncrementalParser', () => {
       lines.push('[[CURRENCIES]]', `code = "S${i}"`, `issuer = "${ISSUER}"`);
     }
     const big = `${lines.join('\n')}\n`;
-
-    const parser = new IncrementalParser();
-    const first = parser.update('file:///big.toml', big);
-    expect(first.incremental).toBe(false);
-
     const small = big.replace('code = "S1000"', 'code = "S1000X"');
-    const second = parser.update('file:///big.toml', small);
-    expect(second.incremental).toBe(true);
-    expect(second.rulesExecuted.length).toBeLessThan(allRules.length);
 
-    const fullStart = performance.now();
-    const expected = lint(small);
-    const fullLatencyMs = performance.now() - fullStart;
+    const median = (samples: number[]): number => {
+      const sorted = [...samples].sort((left, right) => left - right);
+      return sorted[Math.floor(sorted.length / 2)] ?? 0;
+    };
+
+    // A single wall-clock pair is too noisy on shared CI runners: one GC pause
+    // during the incremental round can push it past twice a fast full sweep.
+    // Report the median of independent trials so the comparison measures the
+    // algorithm rather than a scheduler hiccup.
+    const fullLatencies: number[] = [];
+    let expected = lint(small);
+    for (let trial = 0; trial < 3; trial++) {
+      const fullStart = performance.now();
+      expected = lint(small);
+      fullLatencies.push(performance.now() - fullStart);
+    }
+
+    const incrementalLatencies: number[] = [];
+    let second: ReturnType<IncrementalParser['update']> | undefined;
+    for (let trial = 0; trial < 3; trial++) {
+      const parser = new IncrementalParser();
+      const first = parser.update('file:///big.toml', big);
+      expect(first.incremental).toBe(false);
+      second = parser.update('file:///big.toml', small);
+      incrementalLatencies.push(second.latencyMs);
+    }
+
+    expect(second?.incremental).toBe(true);
+    expect(second?.rulesExecuted.length ?? allRules.length).toBeLessThan(allRules.length);
 
     // Rule execution, not reparsing, dominates this fixture: a one-entry edit
     // still selects every currencies rule plus the always-on ones, and the
@@ -192,8 +210,8 @@ describe('IncrementalParser', () => {
     // full sweep now costs about the same). What must hold is that an
     // incremental round stays within the cost of the full lint it replaces
     // instead of adding a second sweep on top.
-    expect(second.latencyMs).toBeLessThanOrEqual(fullLatencyMs * 2);
-    expect(second.diagnostics).toEqual(expected.diagnostics);
+    expect(median(incrementalLatencies)).toBeLessThanOrEqual(median(fullLatencies) * 2);
+    expect(second?.diagnostics).toEqual(expected.diagnostics);
   });
 });
 
