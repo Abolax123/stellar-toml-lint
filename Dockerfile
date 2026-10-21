@@ -23,15 +23,22 @@ COPY package.json package-lock.json tsconfig.json tsconfig.build.json ./
 COPY src ./src
 COPY scripts ./scripts
 
+# ESM rather than CJS: the package is `"type": "module"` and some dependencies
+# (dohdec) use top-level await, which a CJS bundle cannot contain. The banner
+# gives bundled CommonJS dependencies a working `require`.
 RUN npm ci && npm run build \
-	&& npx esbuild src/cli.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/cli.bundle.cjs
+	&& npx esbuild src/cli.ts --bundle --platform=node --target=node20 --format=esm \
+		--outfile=dist/cli.bundle.mjs \
+		--banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
 
 FROM gcr.io/distroless/nodejs20-debian12:nonroot
 
-WORKDIR /app
+COPY --from=build --chown=nonroot:nonroot /app/dist/cli.bundle.mjs /app/cli.mjs
 
-COPY --from=build --chown=nonroot:nonroot /app/dist/cli.bundle.cjs ./cli.cjs
+# Files to lint are mounted at /work (see the usage above), so relative paths
+# resolve there; the entrypoint is absolute so it works from any directory.
+WORKDIR /work
 
 USER nonroot
 
-ENTRYPOINT ["/nodejs/bin/node", "cli.cjs"]
+ENTRYPOINT ["/nodejs/bin/node", "/app/cli.mjs"]
