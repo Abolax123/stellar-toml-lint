@@ -24,9 +24,14 @@ const NODE_BUILTINS = [
     exports: ['connect'],
   },
   {
+    module: /^node:https$/,
+    message: 'Direct origin HTTPS probes are not supported in browser environments.',
+    exports: ['request'],
+  },
+  {
     module: /^node:dns\/promises$/,
-    message: 'DNS auditing is not supported in browser environments.',
-    exports: ['resolveCname'],
+    message: 'DNS lookups are not supported in browser environments.',
+    exports: ['resolve4', 'resolveMx', 'resolveTxt'],
   },
   {
     module: /^node:net$/,

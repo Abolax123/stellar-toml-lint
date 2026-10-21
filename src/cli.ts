@@ -77,6 +77,7 @@ import {
 import { checkSep6 } from './cross-sep/sep6.js';
 import { checkHistoryArchive } from './rules/history-url-check.js';
 import { checkSep10Replay } from './protocols/sep10-replay.js';
+import { verifySep10 } from './protocols/sep10.js';
 import { checkTokenBinding } from './security/token-binding.js';
 import { verifySep6Integration } from './protocols/sep6.js';
 import { verifySep31 } from './protocols/sep31.js';
@@ -96,6 +97,7 @@ import { coordinateSep30Recovery } from './protocols/sep30-coordinator.js';
 import { verifySep24QuoteLock } from './protocols/sep24-quote-lock.js';
 import { checkCollateralGovernance } from './security/collateral-governance.js';
 import { simulateClawback } from './security/clawback-simulator.js';
+import { simulateTrustlineFreezing } from './security/trustline-simulator.js';
 import { checkHistoryPublish } from './history/publish-validator.js';
 import { checkArchiveDiff } from './history/archive-diff.js';
 import { checkBucketIntegrity } from './history/bucket-auditor.js';
@@ -254,6 +256,8 @@ interface Cli {
   verifyIpfs?: boolean;
   crawlPeers: boolean;
   verifyDnssec: boolean;
+  verifyDnssecChain?: boolean;
+  reportPrReview?: boolean;
   verifyOverlay: boolean;
   verifyBuckets: boolean;
   verifyHistoryGaps: boolean;
@@ -433,6 +437,9 @@ OPTIONS
                           ChaCha20-Poly1305 session keys and verify one sealed
                           frame exchange
       --verify-dnssec     Compare A/AAAA answers across DNSSEC-validating DoH resolvers
+      --verify-dnssec-chain
+              Check DNSKEY, DS, and RRSIG evidence through a validating DoH resolver
+      --report-pr-review  Post fix-backed inline suggestions to the GitHub Actions pull request
       --follow-links      Fetch and lint the toml pointers in CURRENCIES
                           (implied by --domain)
       --check-contracts   Verify that Soroban contracts are deployed on chain, that
@@ -620,6 +627,7 @@ async function main(argv: string[]): Promise<number> {
     }
 
     const results: { name: string; result: LintResult }[] = [];
+    const reviewSources: PullRequestReviewSource[] = [];
     // Each linted file's contract error catalogues, kept for the text report.
     const catalogues: ContractErrorCatalogue[] = [];
     // Project defaults from .stellartomlrc.json, overridden by any CLI flag.
@@ -672,6 +680,19 @@ async function main(argv: string[]): Promise<number> {
         );
         if (domainResult.parsed && cli.checkNetwork) {
           const networkDiagnostics: Diagnostic[] = [
+            ...(cli.verifySep10 && typeof domainResult.parsed.WEB_AUTH_ENDPOINT === 'string'
+              ? await verifySep10(
+                  domainResult.parsed.WEB_AUTH_ENDPOINT,
+                  typeof domainResult.parsed.SIGNING_KEY === 'string'
+                    ? domainResult.parsed.SIGNING_KEY
+                    : '',
+                  {
+                    rules,
+                    fetchImpl,
+                    ...(cli.domain === undefined ? {} : { homeDomain: cli.domain }),
+                  },
+                )
+              : []),
             ...(cli.mockFixtures === undefined
               ? await auditEmailDns(domainResult.parsed, { rules })
               : []),
@@ -696,6 +717,13 @@ async function main(argv: string[]): Promise<number> {
               ? await checkDnsIntegrity(domainResult.parsed, fetchImpl, {
                   rules,
                   domain: cli.domain,
+                })
+              : []),
+            ...(cli.verifyDnssecChain
+              ? await verifyDnssecChain(domainResult.parsed, {
+                  rules,
+                  domain: cli.domain,
+                  fetchImpl,
                 })
               : []),
             ...(cli.auditSecurity
@@ -728,6 +756,7 @@ async function main(argv: string[]): Promise<number> {
                 })
               : []),
             ...(await checkImmutabilityClaims(domainResult.parsed, fetchImpl, { rules })),
+            ...(await simulateTrustlineFreezing(domainResult.parsed, fetchImpl, { rules })),
             ...(await checkCertificateTransparencyFromDocument(domainResult.parsed, {
               rules,
               fetchImpl,
@@ -991,6 +1020,11 @@ async function main(argv: string[]): Promise<number> {
                     ? ((fileResult.parsed as Record<string, unknown>).SIGNING_KEY as string)
                     : '';
                 networkDiagnostics.push(
+                  ...(await verifySep10(webAuthEndpoint, signingKey, {
+                    rules,
+                    fetchImpl,
+                    ...(cli.domain === undefined ? {} : { homeDomain: cli.domain }),
+                  })),
                   ...(await checkSep10Replay(signingKey, new URL(webAuthEndpoint).origin, {
                     rules,
                     fetchImpl,
@@ -1022,6 +1056,12 @@ async function main(argv: string[]): Promise<number> {
                   : []),
                 ...(cli.auditDiversity && cli.mockFixtures === undefined
                   ? await checkValidatorDiversityFromDocument(fileResult.parsed, { rules })
+                  : []),
+                ...(cli.mockFixtures === undefined
+                  ? await auditOriginExposure(fileResult.parsed, {
+                      rules,
+                      ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                    })
                   : []),
               );
             }
@@ -1164,6 +1204,7 @@ async function main(argv: string[]): Promise<number> {
                 })),
                 ...(await checkFixedSupplyIssuerLocks(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkImmutabilityClaims(fileResult.parsed, fetchImpl, { rules })),
+                ...(await simulateTrustlineFreezing(fileResult.parsed, fetchImpl, { rules })),
                 ...(await checkCorsPreflight(fileResult.parsed, fetchImpl, { rules })),
                 // Opens its own sockets, outside the fixture transport.
                 ...(cli.mockFixtures === undefined
@@ -1239,6 +1280,13 @@ async function main(argv: string[]): Promise<number> {
                 ...(cli.verifyDnssec
                   ? await checkDnsIntegrity(fileResult.parsed, fetchImpl, {
                       rules,
+                      ...(cli.domain === undefined ? {} : { domain: cli.domain }),
+                    })
+                  : []),
+                ...(cli.verifyDnssecChain
+                  ? await verifyDnssecChain(fileResult.parsed, {
+                      rules,
+                      fetchImpl,
                       ...(cli.domain === undefined ? {} : { domain: cli.domain }),
                     })
                   : []),
@@ -1399,6 +1447,13 @@ async function main(argv: string[]): Promise<number> {
             name: path === '-' ? 'stdin' : path,
             result: fileResult,
           });
+          if (path !== '-') {
+            reviewSources.push({
+              filename: path,
+              source,
+              diagnostics: fileResult.diagnostics,
+            });
+          }
         }
       }
     } catch (error) {
@@ -1636,6 +1691,15 @@ async function main(argv: string[]): Promise<number> {
           `Warning: ${delivery.channel} webhook failed after ${delivery.attempts} attempt(s)${
             delivery.error === undefined ? '' : `: ${delivery.error}`
           }\n`,
+        );
+      }
+    }
+
+    if (cli.reportPrReview) {
+      const review = await submitPullRequestReview(reviewSources, { fetchImpl });
+      if (!review.ok) {
+        process.stderr.write(
+          `Warning: GitHub PR review was not posted${review.reason ? `: ${review.reason}` : ''}\n`,
         );
       }
     }
@@ -2221,6 +2285,14 @@ function parseArgs(argv: string[]): Cli | 'handled' {
 
       case '--verify-dnssec':
         cli.verifyDnssec = true;
+        break;
+
+      case '--verify-dnssec-chain':
+        cli.verifyDnssecChain = true;
+        break;
+
+      case '--report-pr-review':
+        cli.reportPrReview = true;
         break;
 
       case '--follow-links':
