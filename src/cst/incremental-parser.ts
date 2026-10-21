@@ -109,6 +109,9 @@ const ALWAYS_RUN: ReadonlySet<RuleCategory> = new Set<RuleCategory>([
   'codemod',
   'monitor',
   'network',
+  // Style findings span the whole file (indentation is not owned by a table),
+  // so a section-scoped round must still re-scan or a reindent goes unnoticed.
+  'style',
 ]);
 
 /** Top-level section a rule category reads, for the categories that are section-scoped. */
@@ -321,8 +324,9 @@ export class IncrementalParser {
     const sections = sectionsOf(touched.map((t) => t.path));
     const sectionScoped =
       !rootKeyTouched && [...sections].every((section) => KNOWN_SECTIONS.has(section));
-    const rulesExecuted =
-      sectionScoped ? selectRules(sections, previous.diagnostics) : [...allRules];
+    const rulesExecuted = sectionScoped
+      ? selectRules(sections, previous.diagnostics)
+      : [...allRules];
     const diagnostics = runRules(
       merged,
       text,
@@ -521,7 +525,18 @@ function touchedEntries(
 
     const startLine = lineOf(oldStarts, entry.start);
     const endLine = lineOf(oldStarts, Math.max(entry.end - 1, entry.start));
-    if (startLine <= delta.oldEndLine && endLine >= delta.startLine) {
+    // `oldEndLine` is an exclusive bound: `computeLineDelta` reports the start
+    // of the first unchanged line after the edit, and the replaced range
+    // includes the edited line's newline. Comparing inclusively made the entry
+    // that merely *follows* the edit look touched — a `[DOCUMENTATION]` edit
+    // dragged the next `[[CURRENCIES]]` block (and all its rules) in with it.
+    // A pure insertion reports `startLine === oldEndLine` and does touch the
+    // entry at that line, so it keeps the inclusive comparison.
+    const insertion = delta.startLine === delta.oldEndLine;
+    const overlaps = insertion
+      ? startLine <= delta.oldEndLine && endLine >= delta.startLine
+      : startLine < delta.oldEndLine && endLine >= delta.startLine;
+    if (overlaps) {
       touched.push({ entry, path, prefix: entryPrefix });
     }
   }
@@ -620,7 +635,9 @@ function shiftAfter(document: CstDocument, text: string, delta: LineDelta): CstD
     entries.push(entry.start >= delta.oldEndOffset ? shiftEntry(entry, shift) : entry);
   }
   let trailing = document.trailing;
-  if (trailing.start >= delta.oldEndOffset) {
+  // `trailing` is a list of trivia tokens, not a single span: shift the whole
+  // run when the first token after the last entry moved.
+  if (trailing.length > 0 && (trailing[0]?.start ?? 0) >= delta.oldEndOffset) {
     trailing = shiftTrivia(document.trailing, shift);
   }
   return { ...document, source: text, end: text.length, entries, trailing };
@@ -664,7 +681,7 @@ function shiftValue(value: CstValue, delta: number): CstValue {
       ...value,
       start: value.start + delta,
       end: value.end + delta,
-      open: shiftSpan(value.open, delta),
+      open: shiftSpan(value.open, delta) ?? value.open,
       items: value.items.map((item) => ({
         leading: shiftTrivia(item.leading, delta),
         value: shiftValue(item.value, delta),
@@ -680,7 +697,7 @@ function shiftValue(value: CstValue, delta: number): CstValue {
       ...value,
       start: value.start + delta,
       end: value.end + delta,
-      open: shiftSpan(value.open, delta),
+      open: shiftSpan(value.open, delta) ?? value.open,
       entries: value.entries.map((entry) => shiftInlineEntry(entry, delta)),
       closeLeading: shiftTrivia(value.closeLeading, delta),
       close: shiftSpan(value.close, delta),
@@ -714,9 +731,7 @@ function shiftEntry(entry: CstEntry, delta: number): CstEntry {
     trailing: shiftTrivia(entry.trailing, delta),
     leadingComments: entry.leadingComments.map((comment) => shiftComment(comment, delta)),
     trailingComment:
-      entry.trailingComment === undefined
-        ? undefined
-        : shiftComment(entry.trailingComment, delta),
+      entry.trailingComment === undefined ? undefined : shiftComment(entry.trailingComment, delta),
     start: entry.start + delta,
     end: entry.end + delta,
     recovery: entry.recovery,
@@ -742,7 +757,7 @@ function shiftEntry(entry: CstEntry, delta: number): CstEntry {
   return {
     ...shared,
     kind: entry.kind,
-    open: shiftSpan(entry.open, delta),
+    open: shiftSpan(entry.open, delta) ?? entry.open,
     keyLeading: shiftTrivia(entry.keyLeading, delta),
     key: entry.key === null ? null : shiftKey(entry.key, delta),
     keyTrailing: shiftTrivia(entry.keyTrailing, delta),

@@ -1272,6 +1272,14 @@
     "security/unrecorded-signer-addition": {
       "units": 0,
       "rmeFraction": 0
+    },
+    "style/mixed-indentation": {
+      "units": 103.3,
+      "rmeFraction": 0.1
+    },
+    "style/misaligned-table-key": {
+      "units": 102.6,
+      "rmeFraction": 0.1
     }
   }
 }

@@ -13,6 +13,15 @@ export { lint, lintDomain } from './lint.js';
 export { formatToml } from './format-file.js';
 export type { FormatResult } from './format-file.js';
 export {
+  auditIndentation,
+  detectIndentation,
+  INDENT_STYLES,
+  indentUnit,
+  isIndentStyle,
+  normalizeIndentation,
+} from './cst/indentation.js';
+export type { IndentStyle, IndentationFinding, IndentationReport } from './cst/indentation.js';
+export {
   semanticHash,
   semanticallyEqual,
   canonicalize,
@@ -801,8 +810,14 @@ export type {
 export { SPEC_URL } from './spec.js';
 export { applyFixes, computeFixEdits } from './fix.js';
 export type { OffsetTextEdit } from './fix.js';
-export { codeActionsFor } from './lsp/code-actions.js';
-export type { LspCodeAction, LspRange, LspTextEdit, LspWorkspaceEdit } from './lsp/code-actions.js';
+export { codeActionsFor } from './lsp/code-actions-provider.js';
+export type {
+  LspCodeAction,
+  LspCodeActionKind,
+  LspRange,
+  LspTextEdit,
+  LspWorkspaceEdit,
+} from './lsp/code-actions-provider.js';
 
 export {
   checkSignatureStateMachine,

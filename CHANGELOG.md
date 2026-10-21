@@ -9,6 +9,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Indentation normalizer and style enforcement (#303): `--format-style 2|4|tabs` rewrites only the
+  leading whitespace of structural lines via `normalizeIndentation` in `src/cst/indentation.ts`,
+  leaving comments, key order, quoting, and multi-line string contents byte-for-byte intact. The
+  detector reports whether a file is 2-space, 4-space, tabbed, or mixed, and two advisory rules
+  surface the problem in a normal lint run: `style/mixed-indentation` (warning) for tabs and spaces
+  used side by side, and `style/misaligned-table-key` (warning) for a nested header or key-value
+  that does not line up with its siblings. Both are silent on a consistently indented file and
+  neither carries a `--fix`, because reindenting is a whole-document rewrite.
+
+- Interactive code actions and an auto-fix refactoring provider over LSP (#332):
+  `src/lsp/code-actions-provider.ts` answers `textDocument/codeAction` with executable
+  `WorkspaceEdit`s in three kinds — `quickfix` for every fix-bearing diagnostic (including the
+  newly auto-fixable `general/lowercase-public-key` and previously untitled
+  `general/insecure-http-url` and `general/untrimmed-string-value`), a `quickfix` that inserts a
+  missing recommended `[DOCUMENTATION]` field such as `ORG_NAME` under the table header, and a
+  `refactor.rewrite` that derives the Stellar Asset Contract ID for the `[[CURRENCIES]]` entry
+  under the cursor from its `code`/`issuer` via `Asset.contractId`. `source.fixAll` merges every
+  value rewrite in the file into one "Fix all auto-fixable problems in file" edit — the same
+  answer `--fix` gives — and the server advertises all three kinds, honouring `context.only`
+  filtering with LSP's `.` subtype semantics.
+
 - Playground share links (#372): `encodeShareLink` / `decodeShareLink` in
   `src/browser/share-state.ts` put the edited file, the rule overrides and `--strict` into the URL
   fragment as a DEFLATE-compressed, base64url-encoded payload with a SHA-256 checksum, and the
@@ -311,7 +332,7 @@ main
   markers, red/green word-level highlights inside changed lines, and a `... N unchanged lines ...`
   fold across long runs of context, rendered by `renderSplitDiff(base, target, options)` in
   `src/reporters/split-diff.ts`. `--diff` also accepts a single value — `stellar-toml-lint --diff
-  other.toml` compares `./stellar.toml` (or the first positional path) against `other.toml` — while
+other.toml` compares `./stellar.toml` (or the first positional path) against `other.toml` — while
   the two-value form and the exit code, which comes from the semantic comparison either way, are
   unchanged.
 

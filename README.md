@@ -136,6 +136,7 @@ it was before.
 | `-d, --domain <d>`        | Serving domain. Enables CORS, content-type, TLS, and `ORG_URL` checks           |
 | `-f, --format <fmt>`      | `text` (default), `summary`, `json`, `sarif`, `github`, `junit`, `sonar`        |
 | `--format-file`           | Rewrite files in place in canonical SEP-1 layout                                |
+| `--format-style <s>`      | Rewrite a file's indentation as `2`, `4`, or `tabs`, preserving everything else |
 | `--semantic-hash`         | Print a SHA-256 of each file's data, ignoring whitespace, comments, key order   |
 | `--strict`                | Treat warnings as errors                                                        |
 | `--max-warnings <n>`      | Fail if warnings exceed `n`                                                     |
@@ -642,11 +643,17 @@ is still useful in a script.
 $ stellar-toml-lint --lsp
 ```
 
-Speaks the Language Server Protocol on stdio so editors can show live diagnostics and offer
-quick-fix code actions for mechanically safe findings (strip a trailing slash from an endpoint,
-normalize a near-miss `NETWORK_PASSPHRASE`, reduce a social URL to a bare handle, format a phone
-number as E.164). Unfixable parse errors never produce a code action. Point your editor's LSP
-client at the `stellar-toml-lint` binary with `--lsp`.
+Speaks the Language Server Protocol on stdio so editors can show live diagnostics and turn them
+into edits from the lightbulb / alt-enter menu. Mechanically safe findings get executable
+`quickfix` actions — strip a trailing slash from an endpoint, normalize a near-miss
+`NETWORK_PASSPHRASE`, reduce a social URL or `@handle` to a bare handle, format a phone number as
+E.164, upgrade `http://` to `https://`, trim stray whitespace around a string value, uppercase a
+lowercase public key, and add a missing recommended `[DOCUMENTATION]` field such as `ORG_NAME`
+under the table header. A `refactor.rewrite` action derives the Stellar Asset Contract ID for the
+`[[CURRENCIES]]` entry under the cursor from its `code` and `issuer` against the document's
+`NETWORK_PASSPHRASE`, and `source.fixAll` offers "Fix all auto-fixable problems in file" — the
+same rewrites `--fix` would write, merged into one edit. Unfixable parse errors never produce a
+code action. Point your editor's LSP client at the `stellar-toml-lint` binary with `--lsp`.
 
 Diagnostics update incrementally: each keystroke computes the changed line/offset region and
 reparses only that slice, re-running only the rules whose category covers the touched table
@@ -1204,6 +1211,55 @@ const result = formatToml(source);
 if (result.ok) await writeFile(path, result.output);
 else console.error(result.error);
 ```
+
+### Indentation style (`--format-style`)
+
+`--format-style` is the narrow companion to `--format-file`: it rewrites only the whitespace that
+introduces a line — never the bytes between tokens — so comments, key order, quoting, and the
+contents of `"""` blocks survive byte-for-byte. Use it when a file's indentation is the only thing
+that differs from the house style.
+
+```console
+$ stellar-toml-lint --format-style 2 stellar.toml
+Reindented stellar.toml
+$ stellar-toml-lint --format-style tabs --dry-run stellar.toml
+--- stellar.toml
++++ stellar.toml
+…
+```
+
+| Value  | One level of nesting |
+| ------ | -------------------- |
+| `2`    | two spaces           |
+| `4`    | four spaces          |
+| `tabs` | one tab              |
+
+Pass `-` to stream the normalized document to stdout, or `--dry-run` to print the diff and write
+nothing. An already-clean file reports `Unchanged` and is not rewritten, and invalid TOML exits `2`
+with a positioned error rather than being half-formatted. The same rewrite is available
+programmatically:
+
+```ts
+import { detectIndentation, normalizeIndentation } from 'stellar-toml-lint';
+
+const { style } = detectIndentation(source); // '2' | '4' | 'tabs' | 'mixed'
+const { output, changed } = normalizeIndentation(source, '2');
+```
+
+`detectIndentation` also reports a dominant style, tab/space line counts, and the style findings
+below, so a formatter can adopt a file's existing convention when no style is requested.
+
+Two advisory rules back the rewrite, so a lint run surfaces the same problem the formatter fixes:
+
+- **`style/mixed-indentation`** (warning) — the file indents some lines with tabs and others with
+  spaces, or mixes both in one indent.
+- **`style/misaligned-table-key`** (warning) — a key-value or nested table header does not line up
+  with its siblings. Top-level keys are never indented, so they are never judged against each
+  other.
+
+Neither rule carries an automatic `--fix`: reindenting is a document-wide rewrite, so it belongs to
+`--format-style` rather than to a single-value edit, and "Fix all auto-fixable problems" in an
+editor correctly leaves these findings alone.
 
 ### Semantic hash for change tracking
 
@@ -2432,6 +2488,12 @@ The probe creates a test deposit session to discover the interactive URL; pass `
 to inspect a known URL directly. This check needs Playwright or Puppeteer installed in the
 environment running the linter (`npm install playwright && npx playwright install chromium`, or
 `npm install puppeteer`).
+
+**Formatting / style** — a file that mixes tabs and spaces for the same job emits
+`style/mixed-indentation` (warning), and a nested table header or key-value whose indentation does
+not line up with its siblings emits `style/misaligned-table-key` (warning). Neither blocks a run;
+`--format-style 2|4|tabs` rewrites the file to one consistent style, and `--fix` leaves the
+findings alone because reindenting is a whole-document rewrite rather than a value edit.
 
 ### Severity
 
