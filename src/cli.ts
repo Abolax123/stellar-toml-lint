@@ -45,6 +45,7 @@ import {
 } from './reporters.js';
 import { renderSplitDiff } from './reporters/split-diff.js';
 import { detectCommentLoss } from './cst/lossless-rewrite.js';
+import { sortTablesCli } from './cst/table-sorter.js';
 import { calculateReadiness } from './readiness.js';
 import { expandGlob, hasMagic } from './glob.js';
 import { generateAnchorTestsConfig } from './integrations/anchor-tests.js';
@@ -122,7 +123,6 @@ import { checkDnsIntegrity } from './security/dns-integrity.js';
 import { verifyDnssecChain } from './security/dnssec-chain-node.js';
 import { auditOriginExposure } from './security/origin-leak-detector.js';
 import { submitPullRequestReview, type PullRequestReviewSource } from './reporters/pr-reviewer.js';
-import { checkHsts } from './security/hsts-auditor.js';
 import { checkImmutabilityClaims } from './security/immutability-auditor.js';
 import { checkSigningKeyRevocation } from './security/key-revocation.js';
 import { checkKeyRotation } from './security/rotation-detector.js';
@@ -706,8 +706,11 @@ async function main(argv: string[]): Promise<number> {
       } else {
         // Report conflicts or no changes
         for (const diag of migration.diagnostics) {
-          const severity = diag.severity === 'error' ? 'error' : diag.severity === 'warning' ? 'warning' : 'info';
-          process.stderr.write(`[${severity === 'error' ? '1' : '2'}m[codemod] [0m${diag.message}\n`);
+          const severity =
+            diag.severity === 'error' ? 'error' : diag.severity === 'warning' ? 'warning' : 'info';
+          process.stderr.write(
+            `[${severity === 'error' ? '1' : '2'}m[codemod] [0m${diag.message}\n`,
+          );
         }
         if (migration.result.conflicts.length > 0) {
           process.exit(1);

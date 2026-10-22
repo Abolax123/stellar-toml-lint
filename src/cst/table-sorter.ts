@@ -7,7 +7,13 @@ import { collectComments } from './visitor.js';
  * DOCUMENTATION comes first, then PRINCIPALS, then [[CURRENCIES]], then [[VALIDATORS]],
  * then [[CONTRACTS]], in accordance with SEP-1 hierarchy.
  */
-const ROOT_TABLE_ORDER = ['DOCUMENTATION', 'PRINCIPALS', 'CURRENCIES', 'VALIDATORS', 'CONTRACTS'] as const;
+const ROOT_TABLE_ORDER = [
+  'DOCUMENTATION',
+  'PRINCIPALS',
+  'CURRENCIES',
+  'VALIDATORS',
+  'CONTRACTS',
+] as const;
 
 /**
  * Sorts the entries of a stellar.toml document according to SEP-1 spec hierarchy.
@@ -91,19 +97,17 @@ export function sortTables(document: any): any {
 
     // Try to preserve comments associated with this entry
     // by matching based on position
-    const entryComments: any[] = allComments.filter(
-      (comment: any) => {
-        // Simple heuristic: comment start position falls within this entry's span
-        const commentStart = comment.start !== null ? Number(comment.start) : -1;
-        const commentEnd = comment.end !== null ? Number(comment.end) : -1;
-        const entryStart = entry.start !== null ? Number(entry.start) : -1;
-        const entryEnd = entry.end !== null ? Number(entry.end) : -1;
-        return commentStart >= entryStart && commentEnd <= entryEnd;
-      }
-    );
+    const entryComments: any[] = allComments.filter((comment: any) => {
+      // Simple heuristic: comment start position falls within this entry's span
+      const commentStart = comment.start !== null ? Number(comment.start) : -1;
+      const commentEnd = comment.end !== null ? Number(comment.end) : -1;
+      const entryStart = entry.start !== null ? Number(entry.start) : -1;
+      const entryEnd = entry.end !== null ? Number(entry.end) : -1;
+      return commentStart >= entryStart && commentEnd <= entryEnd;
+    });
 
     if (entryComments.length > 0) {
-      ;(newEntry.leadingComments ||= []).push(...entryComments);
+      (newEntry.leadingComments ||= []).push(...entryComments);
     }
 
     newEntries.push(newEntry);
@@ -131,7 +135,7 @@ export function sortTables(document: any): any {
 export function sortTablesCli(
   source: string,
   writeToFile?: boolean,
-  filePath?: string
+  filePath?: string,
 ): { sorted: string; shouldWrite: boolean; path?: string } {
   const document = parseCst(source);
   const sorted = sortTables(document);

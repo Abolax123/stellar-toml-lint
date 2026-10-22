@@ -22,6 +22,7 @@ import type { Hover } from './hover.js';
 import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
 import type {
   CodeActionParams,
+  CompletionParams,
   DidChangeTextDocumentParams,
   DidCloseTextDocumentParams,
   DidOpenTextDocumentParams,
