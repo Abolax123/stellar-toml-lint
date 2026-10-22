@@ -12,7 +12,7 @@ import { maxDecimalsRules } from './max-decimals.js';
 import { horizonRules } from './horizon-check.js';
 import { orgUrlRules } from './org-url-check.js';
 import { sep38Rules } from './sep38-endpoints.js';
-import { sorobanRules } from '../soroban.js';
+import { sorobanRules } from './soroban.js';
 import { sep12Rules } from './sep12-schema.js';
 import { sep6Rules } from '../cross-sep/sep6.js';
 import { corsPreflightRules } from '../network/cors-preflight.js';

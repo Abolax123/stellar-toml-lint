@@ -815,6 +815,15 @@ no wallet could ever complete authentication. A contract whose interface cannot 
 unreachable RPC, an archived entry, or a module with no spec section — stays silent rather than
 failing on a guess.
 
+Contract specs are also audited for contract upgrade functions (`upgrade`, `set_wasm`, `update_wasm`).
+An upgrade function exported without admin protection or authorization checks emits
+`soroban/unprotected-upgrade-function` (error), and an upgrade admin account secured by only a single signer
+emits `soroban/single-signer-upgrade-admin` (warning).
+
+In addition, under `--check-network`, Soroban Stellar Asset Contracts (SAC) total supply (`total_supply()`) is
+verified against the classic asset's issued supply from Horizon `/assets`. If the supplies diverge within a
+consistent ledger-close window, `soroban/supply-invariant-violation` (error) is emitted.
+
 **SEP-12 customer schemas** (with `--check-network`) — queries `KYC_SERVER/customer` and checks the
 customer type schemas the anchor declares (`sep31-sender`, `sep31-receiver`, `sep6-deposit`, …).
 Required field keys that are not standard [SEP-9][sep9] names (`first_name`, `last_name`,

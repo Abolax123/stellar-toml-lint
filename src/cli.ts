@@ -31,7 +31,7 @@ import { checkDisplayDecimals } from './rules/display-decimals-audit.js';
 import { checkHorizon } from './rules/horizon-check.js';
 import { checkSep38 } from './rules/sep38-endpoints.js';
 import { checkRegulatedIssuerFlags } from './rules/currencies.js';
-import { checkContracts } from './soroban.js';
+import { checkContracts } from './rules/soroban.js';
 import { checkSep6 } from './cross-sep/sep6.js';
 import { checkSep10Replay } from './protocols/sep10-replay.js';
 import { checkCollateralGovernance } from './security/collateral-governance.js';
@@ -365,6 +365,10 @@ async function main(argv: string[]): Promise<number> {
                 ...(await checkCollateralGovernance(fileResult.parsed, {
                   rules,
                   fetchImpl,
+                })),
+                ...(await checkContracts(fileResult.parsed, fetchImpl, {
+                  rules,
+                  ...(cli.sorobanRpc !== undefined ? { rpcUrl: cli.sorobanRpc } : {}),
                 })),
               );
             }

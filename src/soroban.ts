@@ -65,7 +65,7 @@ function severityFor(
  * single key in the `ContractData` table with the special
  * `ledgerKeyContractInstance` scval as its key.
  */
-function contractDataInstanceKey(contractId: string): string {
+export function contractDataInstanceKey(contractId: string): string {
   const key = xdr.LedgerKey.contractData(
     new xdr.LedgerKeyContractData({
       contract: new Address(contractId).toScAddress(),
@@ -77,7 +77,7 @@ function contractDataInstanceKey(contractId: string): string {
 }
 
 /** The ledger key of the WASM blob a contract instance points at. */
-function contractCodeKey(wasmHash: Buffer): string {
+export function contractCodeKey(wasmHash: Buffer): string {
   const key = xdr.LedgerKey.contractCode(new xdr.LedgerKeyContractCode({ hash: wasmHash }));
   return key.toXDR('base64');
 }
@@ -86,7 +86,7 @@ function contractCodeKey(wasmHash: Buffer): string {
  * The WASM hash referenced by a contract's instance entry, or `undefined`
  * when the entry does not describe a contract executable as WASM.
  */
-function wasmHashOf(entryXdr: unknown): Buffer | undefined {
+export function wasmHashOf(entryXdr: unknown): Buffer | undefined {
   if (!isString(entryXdr)) return undefined;
   try {
     const data = xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');
@@ -105,7 +105,7 @@ function wasmHashOf(entryXdr: unknown): Buffer | undefined {
  * The WASM bytes carried by a contract-code entry, or `undefined` when the
  * entry is not the contract code at all.
  */
-function wasmBytesOf(entryXdr: unknown): Buffer | undefined {
+export function wasmBytesOf(entryXdr: unknown): Buffer | undefined {
   if (!isString(entryXdr)) return undefined;
   try {
     const data = xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');
@@ -215,7 +215,7 @@ interface LedgerEntryResult {
  * result is a valid answer that simply has no entry, and surfaces as
  * `liveUntil === undefined`.
  */
-async function queryLedgerEntry(
+export async function queryLedgerEntry(
   rpcUrl: string,
   key: string,
   fetchImpl: typeof fetch,
@@ -429,7 +429,7 @@ export async function checkContracts(
 }
 
 /** Registered so `--list-rules` and `--off`/`--warn`/`--error` know these ids. */
-export const sorobanRules: Rule[] = [
+export const sorobanTtlRules: Rule[] = [
   {
     id: TTL_EXPIRING_RULE,
     category: 'network',
@@ -460,5 +460,6 @@ export const sorobanRules: Rule[] = [
   },
 ];
 
-/** Rule ids emitted by {@link checkContractTtl}. */
-export const sorobanRuleIds: readonly string[] = sorobanRules.map((rule) => rule.id);
+export { sorobanRules, sorobanRuleIds } from './rules/soroban.js';
+export { auditUpgradeSecurity, upgradeAuditorRules } from './soroban/upgrade-auditor.js';
+export { auditSupplyInvariant, supplyInvariantRules } from './soroban/supply-invariant.js';
