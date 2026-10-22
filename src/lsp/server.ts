@@ -1,8 +1,9 @@
 /**
  * Language Server Protocol server over stdio — `stellar-toml-lint --lsp`.
  *
- * Speaks only what editors need to show diagnostics, offer #42 quick fixes,
- * explain a field under the cursor, and colour tokens by meaning: `initialize`,
+ * Speaks only what editors need to show diagnostics, offer #42/#332 code
+ * actions (quick fixes, fix-all, SAC-derivation refactor), explain a field
+ * under the cursor, and colour tokens by meaning: `initialize`,
  * open/change/close sync, `publishDiagnostics`, `textDocument/codeAction`,
  * `textDocument/hover`, and `textDocument/semanticTokens/full`.
  * Framing is the standard `Content-Length` header; payloads are UTF-8 JSON.
@@ -11,10 +12,11 @@
  */
 import process from 'node:process';
 import { createHash } from 'node:crypto';
-import { lint } from '../lint.js';
+import { IncrementalParser } from '../cst/incremental-parser.js';
 import type { Diagnostic } from '../types.js';
-import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
-import type { LspCodeAction } from './code-actions.js';
+import { CODE_ACTION_KINDS, codeActionsFor, toLspDiagnostic } from './code-actions-provider.js';
+import type { LspCodeAction } from './code-actions-provider.js';
+import { getCompletionItems } from './completion-provider.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
 import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
@@ -43,6 +45,10 @@ export async function runLspServer(
     string,
     { text: string; resultId: string; diagnostics: Diagnostic[] }
   >();
+  // Incremental reparsing: keeps the previous CST per URI and re-runs only the
+  // rules a keystroke can affect, falling back to a full `lint()` whenever the
+  // edit is one it cannot reason about exactly.
+  const parser = new IncrementalParser();
   let shuttingDown = false;
   let clientSupportsDiagnosticPull = false;
 
@@ -64,7 +70,7 @@ export async function runLspServer(
   };
 
   const updateDocument = (uri: string, text: string): void => {
-    const diagnostics = lint(text).diagnostics;
+    const diagnostics = parser.update(uri, text).diagnostics;
     const resultId = createHash('sha256').update(text).digest('hex');
     documents.set(uri, { text, resultId, diagnostics });
     if (!clientSupportsDiagnosticPull) publishDiagnostics(uri, diagnostics);
@@ -78,11 +84,12 @@ export async function runLspServer(
           const params = message.params as {
             capabilities?: { textDocument?: { diagnostic?: unknown } };
           };
-          clientSupportsDiagnosticPull = params.capabilities?.textDocument?.diagnostic !== undefined;
+          clientSupportsDiagnosticPull =
+            params.capabilities?.textDocument?.diagnostic !== undefined;
           const result: LspInitializeResult = {
             capabilities: {
               textDocumentSync: { openClose: true, change: SYNC_FULL },
-              codeActionProvider: { codeActionKinds: ['quickfix'] },
+              codeActionProvider: { codeActionKinds: [...CODE_ACTION_KINDS] },
               completionProvider: { resolveProvider: false, triggerCharacters: ['=', '.'] },
               hoverProvider: true,
               semanticTokensProvider: { legend: SEMANTIC_TOKEN_LEGEND, full: true },
@@ -104,6 +111,7 @@ export async function runLspServer(
             params.textDocument.uri,
             document.diagnostics,
             params.range,
+            params.context?.only,
           );
           return { jsonrpc: '2.0', id, result };
         }
@@ -114,11 +122,20 @@ export async function runLspServer(
           const result: Hover | null = getHoverInfo(document.text, params.position);
           return { jsonrpc: '2.0', id, result };
         }
+        case 'textDocument/completion': {
+          const params = message.params as CompletionParams;
+          const document = documents.get(params.textDocument.uri);
+          const result =
+            document === undefined
+              ? { isIncomplete: false, items: [] }
+              : getCompletionItems(document.text, params.position);
+          return { jsonrpc: '2.0', id, result };
+        }
         case 'textDocument/semanticTokens/full': {
           const params = message.params as SemanticTokensParams;
-          const source = documents.get(params.textDocument.uri);
+          const document = documents.get(params.textDocument.uri);
           const result: SemanticTokens = {
-            data: source === undefined ? [] : computeSemanticTokens(source.text),
+            data: document === undefined ? [] : computeSemanticTokens(document.text),
           };
           return { jsonrpc: '2.0', id, result };
         }
@@ -167,6 +184,7 @@ export async function runLspServer(
       case 'textDocument/didClose': {
         const params = message.params as DidCloseTextDocumentParams;
         documents.delete(params.textDocument.uri);
+        parser.close(params.textDocument.uri);
         return true;
       }
       default:

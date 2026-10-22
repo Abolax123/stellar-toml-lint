@@ -20,10 +20,13 @@ export type RuleCategory =
   | 'currencies'
   | 'validators'
   | 'network'
+  | 'fees'
+  | 'sep24'
   | 'policy'
   | 'sep12'
   | 'monitor'
-  | 'codemod';
+  | 'codemod'
+  | 'style';
 
 /** A 1-based position in the source file. */
 export interface Position {
@@ -148,6 +151,13 @@ export interface LintOptions {
   /** Verify network-dependent account and currency metadata checks. */
   checkNetwork?: boolean;
   /**
+   * Serve network checks from recorded fixtures instead of the network.
+   *
+   * When set, rules must not open sockets of their own: DNS, TLS, and raw
+   * probes are skipped, exactly as the CLI's fixture transport skips HTTP.
+   */
+  mockFixtures?: string;
+  /**
    * Fetch and lint the `toml` pointers referenced by `CURRENCIES` entries.
    *
    * Consumes the caller's transport, so a stubbed `fetchImpl` keeps the linked
@@ -209,6 +219,8 @@ export interface StellarToml {
   WEB_AUTH_FOR_CONTRACTS_ENDPOINT?: string;
   DIRECT_PAYMENT_SERVER?: string;
   ANCHOR_QUOTE_SERVER?: string;
+  RECOVERY_SERVER?: string;
+  RECOVERY_SERVERS?: string[];
   DOCUMENTATION?: {
     ORG_NAME?: string;
     ORG_DBA?: string;

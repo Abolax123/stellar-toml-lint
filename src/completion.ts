@@ -86,6 +86,15 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--lsp', description: 'Run as a Language Server on stdio' },
   { long: '--quiet', short: '-q', description: 'Report errors only' },
   { long: '--count', description: 'Print only problem count totals' },
+  {
+    long: '--format-style',
+    description: "Rewrite a file's indentation as 2 spaces, 4 spaces, or tabs",
+    values: ['2', '4', 'tabs'],
+  },
+  {
+    long: '--semantic-hash',
+    description: 'Print a SHA-256 of the data, ignoring formatting and comments',
+  },
   { long: '--silent-success', description: 'Print nothing when a run has no diagnostics' },
   { long: '--quiet-success', description: 'Alias for --silent-success' },
   { long: '--show-help-urls', description: 'Print the spec link for each finding' },
@@ -100,14 +109,25 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--audit-diversity', description: 'Flag ASN/geographic validator concentration' },
   { long: '--verify-sep10', description: 'Verify SEP-10 nonce replay resistance' },
   { long: '--audit-security', description: 'Audit token binding, TLS, and CAA security' },
+  { long: '--audit-reserves', description: 'Compare collateral reserves with Stellar supply' },
   { long: '--verify-sep6', description: 'Run SEP-6 programmatic integration tester' },
+  { long: '--verify-sep30', description: 'Coordinate multi-party recovery signing' },
   { long: '--verify-sep31', description: 'Audit SEP-31 cross-border payment lifecycle' },
   { long: '--verify-sep38', description: 'Audit SEP-38 quotes, spreads, and expirations' },
   { long: '--crawl-peers', description: 'Discover and audit overlay peers' },
   { long: '--verify-buckets', description: 'Hash- and XDR-verify published archive buckets' },
+  {
+    long: '--verify-history-gaps',
+    description: 'Check every recent archive checkpoint is downloadable',
+  },
+  {
+    long: '--crawl-history',
+    description: 'Crawl previous HAS checkpoints and verify the ledger hash chain',
+  },
   { long: '--verify-overlay', description: 'Handshake with each validator over the overlay' },
   { long: '--verify-dnssec', description: 'Compare DNSSEC-validating DNS resolvers' },
   { long: '--check-contracts', description: 'Verify Soroban contracts on chain' },
+  { long: '--check-parity', description: 'Compare contracts across networks' },
   { long: '--rpc-url', description: 'Soroban RPC endpoint', takesValue: true },
   { long: '--soroban-rpc', description: 'Soroban RPC endpoint (alias)', takesValue: true },
   { long: '--simulate-soroban', description: 'Dry-run SEP-41 calls against Soroban RPC' },
@@ -155,6 +175,16 @@ const FLAGS: readonly FlagSpec[] = [
   },
   { long: '--graph-validators', description: 'Include validators in the diagram' },
   { long: '--graph-color', description: 'Color diagram nodes by protocol type' },
+  {
+    long: '--graph-quorum',
+    description: 'Render declared quorum slices as ascii, mermaid, or svg',
+    values: ['ascii', 'mermaid', 'svg'],
+  },
+  {
+    long: '--graph-quorum-format',
+    description: 'Select the quorum graph renderer',
+    values: ['ascii', 'mermaid', 'svg'],
+  },
   { long: '--policy', description: 'Evaluate an enterprise policy file', takesValue: true },
   { long: '--json-schema', description: 'Print a JSON Schema for stellar.toml' },
   { long: '--color', description: 'Force colour on' },
@@ -179,6 +209,12 @@ const FLAGS: readonly FlagSpec[] = [
   { long: '--help', short: '-h', description: 'Print usage' },
   { long: '--fix', description: 'Apply safe autofixes to files' },
   { long: '--dry-run', description: 'Preview autofix or migration diff without modifying files' },
+  { long: '--diff', description: 'Compare two versions for breaking changes', takesValue: true },
+  {
+    long: '--diff-style',
+    description: 'Render --diff as unified or side-by-side',
+    values: ['unified', 'side-by-side'],
+  },
 ];
 
 /** Rule-override flags, which complete to the registered rule ids. */
