@@ -9,11 +9,19 @@ import {
   isMuxedAccountId,
   isString,
   isUrl,
+  normalizePassphraseSeparator,
 } from '../predicates.js';
 import { emptyStringValuesRule } from './empty-values.js';
 import { githubHandleRules } from './github-handle.js';
+import { twitterHandleRules } from './twitter-handle.js';
+import { telegramHandleRules } from './telegram-handle.js';
 import { trailingSlashRule } from './trailing-slash.js';
 import { uppercaseKeyRules } from './uppercase-keys.js';
+import { whitespaceRules } from './whitespace.js';
+import { httpVersionAuditorRules } from '../network/http-version-auditor.js';
+import { multiTenantRules } from '../network/multi-tenant.js';
+import { vanityAuditorRules } from '../crypto/vanity-auditor.js';
+import { isPkcs11Uri, pkcs11ValidatorRules } from '../crypto/pkcs11-validator.js';
 
 /**
  * The `WEB_AUTH_CONTRACT_ID` when it is a valid C... id, with its file path,
@@ -30,6 +38,9 @@ export function webAuthContractIdOf(
 
 /** Rules covering file-level constraints and the global (untabled) fields. */
 export const generalRules: Rule[] = [
+  ...vanityAuditorRules,
+  ...whitespaceRules,
+  ...pkcs11ValidatorRules,
   ...uppercaseKeyRules,
   trailingSlashRule,
   {
@@ -135,7 +146,7 @@ export const generalRules: Rule[] = [
 
       // Whitespace around the `;` is the classic hand-typed mistake, and it
       // breaks signature verification in a way that is painful to debug.
-      const normalized = passphrase.trim().replace(/\s*;\s*/, ' ; ');
+      const normalized = normalizePassphraseSeparator(passphrase.trim());
       const near = KNOWN_PASSPHRASES[normalized];
       ctx.report({
         rule: 'network/passphrase',
@@ -220,6 +231,10 @@ export const generalRules: Rule[] = [
         const value = ctx.doc[field];
         if (value === undefined) continue;
         if (isAccountId(value)) continue;
+        // A PKCS#11 URI is an enterprise key-vault pointer, not a Stellar
+        // account; the dedicated crypto/* rules validate its syntax and PIN
+        // handling.
+        if (isPkcs11Uri(value)) continue;
 
         // Distinguish "wrong kind of key" from "corrupt key" — the fix differs.
         const muxed = isMuxedAccountId(value);
@@ -505,4 +520,12 @@ export const generalRules: Rule[] = [
   },
   emptyStringValuesRule,
   ...githubHandleRules,
+  ...twitterHandleRules,
+  ...telegramHandleRules,
+  // Network-bound rule ids live here so `--list-rules` and `--off` know them;
+  // the diagnostics come from `auditHttpVersions` under `--check-network`.
+  ...httpVersionAuditorRules,
+  // As above: the ids are registered here, the diagnostics come from
+  // `auditMultiTenantRouting` under `--check-network`.
+  ...multiTenantRules,
 ];
