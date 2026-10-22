@@ -1,17 +1,8 @@
 import { Networks } from '@stellar/stellar-base';
 import type { Diagnostic, Rule, RuleOverrides } from '../types.js';
-import {
-  checkContracts as checkContractsBase,
-  sorobanTtlRules,
-} from '../soroban.js';
-import {
-  auditUpgradeSecurity,
-  upgradeAuditorRules,
-} from '../soroban/upgrade-auditor.js';
-import {
-  auditSupplyInvariant,
-  supplyInvariantRules,
-} from '../soroban/supply-invariant.js';
+import { checkContracts as checkContractsBase, sorobanTtlRules } from '../soroban.js';
+import { auditUpgradeSecurity, upgradeAuditorRules } from '../soroban/upgrade-auditor.js';
+import { auditSupplyInvariant, supplyInvariantRules } from '../soroban/supply-invariant.js';
 import { rpcUrlFor } from './display-decimals-audit.js';
 import { contractIdsOf } from './currencies.js';
 import { webAuthContractIdOf } from './general.js';
@@ -51,10 +42,7 @@ export async function checkContracts(
   diagnostics.push(...ttlDiagnostics);
 
   const authContract = webAuthContractIdOf(doc);
-  const targets = [
-    ...contractIdsOf(doc),
-    ...(authContract !== undefined ? [authContract] : []),
-  ];
+  const targets = [...contractIdsOf(doc), ...(authContract !== undefined ? [authContract] : [])];
 
   for (const target of targets) {
     const upgradeDiagnostics = await auditUpgradeSecurity(

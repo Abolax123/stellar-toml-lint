@@ -514,7 +514,12 @@ describe('Smart Contract Upgrade Auditor', () => {
       return new Response(JSON.stringify({}), { status: 404 });
     }) as unknown as typeof fetch;
 
-    const diagnostics = await auditUpgradeSecurity(CONTRACT, RPC, 'https://horizon.stellar.org', fetchImpl);
+    const diagnostics = await auditUpgradeSecurity(
+      CONTRACT,
+      RPC,
+      'https://horizon.stellar.org',
+      fetchImpl,
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -533,7 +538,9 @@ describe('Smart Contract Upgrade Auditor', () => {
             entries: [
               {
                 key,
-                xdr: isCode ? codeEntryXdr(wasmWithSpec(['upgrade', 'transfer'])) : instanceEntryXdrWithAdmin(CONTRACT),
+                xdr: isCode
+                  ? codeEntryXdr(wasmWithSpec(['upgrade', 'transfer']))
+                  : instanceEntryXdrWithAdmin(CONTRACT),
                 liveUntilLedgerSeq: 200_000,
               },
             ],
@@ -543,7 +550,12 @@ describe('Smart Contract Upgrade Auditor', () => {
       );
     }) as unknown as typeof fetch;
 
-    const diagnostics = await auditUpgradeSecurity(CONTRACT, RPC, 'https://horizon.stellar.org', fetchImpl);
+    const diagnostics = await auditUpgradeSecurity(
+      CONTRACT,
+      RPC,
+      'https://horizon.stellar.org',
+      fetchImpl,
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]?.rule).toBe(UNPROTECTED_UPGRADE_RULE);
     expect(diagnostics[0]?.severity).toBe('error');
@@ -586,7 +598,12 @@ describe('Smart Contract Upgrade Auditor', () => {
       );
     }) as unknown as typeof fetch;
 
-    const diagnostics = await auditUpgradeSecurity(CONTRACT, RPC, 'https://horizon.stellar.org', fetchImpl);
+    const diagnostics = await auditUpgradeSecurity(
+      CONTRACT,
+      RPC,
+      'https://horizon.stellar.org',
+      fetchImpl,
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]?.rule).toBe(SINGLE_SIGNER_UPGRADE_ADMIN_RULE);
     expect(diagnostics[0]?.severity).toBe('warning');
@@ -629,7 +646,12 @@ describe('Smart Contract Upgrade Auditor', () => {
       );
     }) as unknown as typeof fetch;
 
-    const diagnostics = await auditUpgradeSecurity(CONTRACT, RPC, 'https://horizon.stellar.org', fetchImpl);
+    const diagnostics = await auditUpgradeSecurity(
+      CONTRACT,
+      RPC,
+      'https://horizon.stellar.org',
+      fetchImpl,
+    );
     expect(diagnostics).toEqual([]);
   });
 });
@@ -652,10 +674,7 @@ describe('Token Supply Invariant Verifier', () => {
         );
       }
       if (u === 'https://horizon.stellar.org') {
-        return new Response(
-          JSON.stringify({ history_latest_ledger: 100_002 }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ history_latest_ledger: 100_002 }), { status: 200 });
       }
       return new Response(
         JSON.stringify({
@@ -699,10 +718,7 @@ describe('Token Supply Invariant Verifier', () => {
         );
       }
       if (u === 'https://horizon.stellar.org') {
-        return new Response(
-          JSON.stringify({ history_latest_ledger: 100_001 }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ history_latest_ledger: 100_001 }), { status: 200 });
       }
       return new Response(
         JSON.stringify({
@@ -734,7 +750,9 @@ describe('Token Supply Invariant Verifier', () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]?.rule).toBe(SUPPLY_INVARIANT_RULE);
     expect(diagnostics[0]?.severity).toBe('error');
-    expect(diagnostics[0]?.message).toContain('Soroban SAC total_supply (1000.0000000) does not match Horizon classic issued supply (500.0000000)');
+    expect(diagnostics[0]?.message).toContain(
+      'Soroban SAC total_supply (1000.0000000) does not match Horizon classic issued supply (500.0000000)',
+    );
   });
 
   it('fails safely when ledger close window consistency cannot be established', async () => {
