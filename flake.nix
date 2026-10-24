@@ -16,13 +16,7 @@
             src = self;
             doCheck = false;
             installFlags = [ "--ignore-scripts" ];
-            # Fixed-output hash of the npm dependency fetch, derived from
-            # package-lock.json. Any dependency change invalidates it, and the
-            # Nix Flake Check workflow is the only thing that notices — so a PR
-            # that adds or bumps a dependency has to move this line with it.
-            # Recompute with:
-            #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-            npmDepsHash = "sha256-HvnZ0IqzzFjsDeDIy4PMs28MlKWo+y3+L4xIRGdJjB4=";
+npmDepsHash = "sha256-W00RXqfBukJRZO4hph8dLn1IaDOQKP3iNWmNcQOuhc4=";
             nativeBuildInputs = with pkgs; [
               nodejs_22
               python3
