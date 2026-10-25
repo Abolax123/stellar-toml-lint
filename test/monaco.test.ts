@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   setupMonacoStellarToml,
@@ -137,20 +137,27 @@ describe('Monaco integration', () => {
   });
 
   it('debounces edits and re-lints the model', async () => {
-    const h = harness();
-    const controller = setupMonacoStellarToml(h.monaco, 'worker.js', {
-      worker: h.worker,
-      debounceMs: 5,
-    });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(h.markerCalls).toHaveLength(1);
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      const controller = setupMonacoStellarToml(h.monaco, 'worker.js', {
+        worker: h.worker,
+        debounceMs: 5,
+      });
+      // Process initial lint
+      await vi.runAllTimersAsync();
+      expect(h.markerCalls).toHaveLength(1);
 
-    h.change();
-    await new Promise((resolve) => setTimeout(resolve, 15));
-    expect(h.markerCalls).toHaveLength(2);
-    controller.dispose();
-    expect(h.worker.terminated).toBe(true);
-    expect(h.markerCalls.at(-1)?.markers).toEqual([]);
+      h.change();
+      // Advance past debounce and worker response
+      await vi.advanceTimersByTimeAsync(10);
+      expect(h.markerCalls).toHaveLength(2);
+      controller.dispose();
+      expect(h.worker.terminated).toBe(true);
+      expect(h.markerCalls.at(-1)?.markers).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('registers a hover provider that asks the worker for SEP-1 docs', async () => {
