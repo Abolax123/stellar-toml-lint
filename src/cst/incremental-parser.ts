@@ -321,8 +321,9 @@ export class IncrementalParser {
     const sections = sectionsOf(touched.map((t) => t.path));
     const sectionScoped =
       !rootKeyTouched && [...sections].every((section) => KNOWN_SECTIONS.has(section));
-    const rulesExecuted =
-      sectionScoped ? selectRules(sections, previous.diagnostics) : [...allRules];
+    const rulesExecuted = sectionScoped
+      ? selectRules(sections, previous.diagnostics)
+      : [...allRules];
     const diagnostics = runRules(
       merged,
       text,
@@ -521,7 +522,15 @@ function touchedEntries(
 
     const startLine = lineOf(oldStarts, entry.start);
     const endLine = lineOf(oldStarts, Math.max(entry.end - 1, entry.start));
-    if (startLine <= delta.oldEndLine && endLine >= delta.startLine) {
+    // `oldEndLine` is the exclusive end of the replaced range. An insertion has
+    // no old lines, so include the entry at the boundary to capture the text
+    // around the new content; otherwise only entries strictly inside the old
+    // range are touched (the entry starting on `oldEndLine` is untouched).
+    const overlaps =
+      delta.oldEndLine === delta.startLine
+        ? startLine <= delta.startLine && endLine >= delta.startLine
+        : startLine < delta.oldEndLine && endLine >= delta.startLine;
+    if (overlaps) {
       touched.push({ entry, path, prefix: entryPrefix });
     }
   }
@@ -619,10 +628,11 @@ function shiftAfter(document: CstDocument, text: string, delta: LineDelta): CstD
   for (const entry of document.entries) {
     entries.push(entry.start >= delta.oldEndOffset ? shiftEntry(entry, shift) : entry);
   }
-  let trailing = document.trailing;
-  if (trailing.start >= delta.oldEndOffset) {
-    trailing = shiftTrivia(document.trailing, shift);
-  }
+  const trailing = document.trailing.map((trivia) =>
+    trivia.start >= delta.oldEndOffset
+      ? { ...trivia, start: trivia.start + shift, end: trivia.end + shift }
+      : trivia,
+  );
   return { ...document, source: text, end: text.length, entries, trailing };
 }
 
@@ -636,7 +646,10 @@ function shiftComment(comment: CstComment, delta: number): CstComment {
   return { ...comment, start: comment.start + delta, end: comment.end + delta };
 }
 
+/** Adds `delta` to every offset inside a token span. */
+function shiftSpan(span: CstTokenSpan, delta: number): CstTokenSpan;
 /** Adds `delta` to every offset inside a token span (or passes `null` through). */
+function shiftSpan(span: CstTokenSpan | null, delta: number): CstTokenSpan | null;
 function shiftSpan(span: CstTokenSpan | null, delta: number): CstTokenSpan | null {
   return span === null ? null : { ...span, start: span.start + delta, end: span.end + delta };
 }
@@ -714,9 +727,7 @@ function shiftEntry(entry: CstEntry, delta: number): CstEntry {
     trailing: shiftTrivia(entry.trailing, delta),
     leadingComments: entry.leadingComments.map((comment) => shiftComment(comment, delta)),
     trailingComment:
-      entry.trailingComment === undefined
-        ? undefined
-        : shiftComment(entry.trailingComment, delta),
+      entry.trailingComment === undefined ? undefined : shiftComment(entry.trailingComment, delta),
     start: entry.start + delta,
     end: entry.end + delta,
     recovery: entry.recovery,

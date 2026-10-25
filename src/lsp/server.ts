@@ -16,6 +16,8 @@ import type { Diagnostic } from '../types.js';
 import { codeActionsFor, toLspDiagnostic } from './code-actions.js';
 import type { LspCodeAction } from './code-actions.js';
 import { getCompletionItems } from './completion-provider.js';
+import { getDocumentSymbols } from './document-symbols.js';
+import type { LspDocumentSymbol } from './document-symbols.js';
 import { getHoverInfo } from './hover.js';
 import type { Hover } from './hover.js';
 import { computeSemanticTokens, SEMANTIC_TOKEN_LEGEND } from './semantic-tokens.js';
@@ -93,6 +95,7 @@ export async function runLspServer(
               codeActionProvider: { codeActionKinds: ['quickfix'] },
               completionProvider: { resolveProvider: false, triggerCharacters: ['=', '.'] },
               hoverProvider: true,
+              documentSymbolProvider: true,
               semanticTokensProvider: { legend: SEMANTIC_TOKEN_LEGEND, full: true },
             },
             serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -143,7 +146,7 @@ export async function runLspServer(
           const params = message.params as DocumentSymbolParams;
           const source = documents.get(params.textDocument.uri);
           if (source === undefined) return { jsonrpc: '2.0', id, result: [] };
-          const result: LspDocumentSymbol[] = getDocumentSymbols(source);
+          const result: LspDocumentSymbol[] = getDocumentSymbols(source.text);
           return { jsonrpc: '2.0', id, result };
         }
         default:

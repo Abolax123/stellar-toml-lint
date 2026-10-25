@@ -183,7 +183,10 @@ export function setupMonacoStellarToml(
     if (disposed || listeners.has(model)) return;
     if (!isLintable(model, languageIds)) return;
 
-    listeners.set(model, model.onDidChangeContent(() => schedule(model)));
+    listeners.set(
+      model,
+      model.onDidChangeContent(() => schedule(model)),
+    );
     void runLint(model);
   };
 
@@ -272,9 +275,13 @@ export function toMonacoMarkers(
   input: LintResultLike | readonly LintDiagnostic[],
   monaco?: Pick<MonacoLike, 'MarkerSeverity'>,
 ): MonacoMarker[] {
-  const diagnostics = Array.isArray(input) ? input : input.diagnostics;
+  const diagnostics = isLintResult(input) ? input.diagnostics : input;
   const severity = monaco?.MarkerSeverity ?? SEVERITY;
   return diagnostics.map((diagnostic) => markerFor(diagnostic, severity));
+}
+
+function isLintResult(input: LintResultLike | readonly LintDiagnostic[]): input is LintResultLike {
+  return !Array.isArray(input);
 }
 
 /** Aliases kept for discoverability in playground code. */

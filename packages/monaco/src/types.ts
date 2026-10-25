@@ -119,10 +119,7 @@ export interface WorkerLike {
   terminate?(): void;
   onmessage?: ((event: { data: unknown }) => void) | null;
   onerror?: ((event: unknown) => void) | null;
-  addEventListener?(
-    type: 'message' | 'error',
-    listener: (event: { data?: unknown }) => void,
-  ): void;
+  addEventListener?(type: 'message' | 'error', listener: (event: { data?: unknown }) => void): void;
 }
 
 export interface SetupOptions {

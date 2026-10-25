@@ -14,12 +14,7 @@
  */
 import { SourcePositions } from '../cst/lexer.js';
 import { parseCst } from '../cst/parser.js';
-import type {
-  CstDocument,
-  CstEntry,
-  CstKeyValueEntry,
-  CstTableEntry,
-} from '../cst/parser.js';
+import type { CstDocument, CstEntry, CstKeyValueEntry, CstTableEntry } from '../cst/parser.js';
 import type { LspPosition, LspRange } from './code-actions.js';
 
 /** SymbolKind values from the LSP specification. */

@@ -26,6 +26,7 @@ export interface LspInitializeResult {
     codeActionProvider?: boolean | { codeActionKinds?: string[] };
     completionProvider?: { resolveProvider: boolean; triggerCharacters?: string[] };
     hoverProvider?: boolean;
+    documentSymbolProvider?: boolean;
     semanticTokensProvider?: {
       legend: SemanticTokensLegend;
       full?: boolean | { delta?: boolean };
@@ -84,6 +85,10 @@ export interface HoverParams {
 export interface CompletionParams {
   textDocument: { uri: string };
   position: { line: number; character: number };
+}
+
+export interface DocumentSymbolParams {
+  textDocument: { uri: string };
 }
 
 /** JSON-RPC error codes used by this server. */

@@ -130,8 +130,31 @@ export function renderSplitDiff(
   lines.push(`${color ? GREEN : ''}+++${color ? RESET : ''} ${options.target ?? 'b'}`);
   lines.push(...renderRows(rows, aLines.length, bLines.length, width, color));
   lines.push('');
-  lines.push(summarize(rows, color));
+  lines.push(...wrapWords(summarize(rows, color), width));
   return `${lines.join('\n')}\n`;
+}
+
+const ANSI = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');
+
+/** Wraps plain or ANSI-coloured text on spaces without counting escape codes. */
+function wrapWords(text: string, width: number): string[] {
+  const lines: string[] = [];
+  let current = '';
+  for (const word of text.split(' ')) {
+    const candidate = current === '' ? word : `${current} ${word}`;
+    if (current === '' || visibleLength(candidate) <= width) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current !== '') lines.push(current);
+  return lines;
+}
+
+function visibleLength(text: string): number {
+  return text.replace(ANSI, '').length;
 }
 
 /** Splits text into lines, normalizing CRLF and dropping the final empty line. */
@@ -262,7 +285,8 @@ function longestIncreasing(pairs: Array<{ a: number; b: number }>): Array<[numbe
     let high = tails.length;
     while (low < high) {
       const mid = (low + high) >> 1;
-      if ((pairs[tails[mid]]?.b ?? -1) < value) low = mid + 1;
+      const tail = tails[mid] ?? -1;
+      if ((pairs[tail]?.b ?? -1) < value) low = mid + 1;
       else high = mid;
     }
     prev[i] = low > 0 ? (tails[low - 1] ?? -1) : -1;

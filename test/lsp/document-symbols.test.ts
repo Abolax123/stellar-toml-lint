@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  DocumentSymbolKind,
-  getDocumentSymbols,
-} from '../../src/lsp/document-symbols.js';
+import { DocumentSymbolKind, getDocumentSymbols } from '../../src/lsp/document-symbols.js';
 import type { LspDocumentSymbol } from '../../src/lsp/document-symbols.js';
 
 const DOC = [
@@ -64,19 +61,13 @@ describe('getDocumentSymbols', () => {
     const currency = find(symbols, 'Currency: USDC');
 
     expect(currency?.kind).toBe(DocumentSymbolKind.Array);
-    expect(currency?.children?.map((child) => child.name)).toEqual([
-      'code',
-      'issuer',
-      'status',
-    ]);
+    expect(currency?.children?.map((child) => child.name)).toEqual(['code', 'issuer', 'status']);
     expect(find(symbols, 'Currency: EURC')?.kind).toBe(DocumentSymbolKind.Array);
   });
 
   it('labels validators with their alias and falls back to the host', () => {
     const symbols = getDocumentSymbols(DOC);
-    expect(find(symbols, 'Validator: example-us-node')?.kind).toBe(
-      DocumentSymbolKind.Array,
-    );
+    expect(find(symbols, 'Validator: example-us-node')?.kind).toBe(DocumentSymbolKind.Array);
 
     const hostOnly = getDocumentSymbols(
       ['[[VALIDATORS]]', 'HOST = "validator.example.com:11625"', ''].join('\n'),

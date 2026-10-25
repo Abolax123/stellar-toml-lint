@@ -43,11 +43,7 @@ module.exports = grammar({
   extras: ($) => [$.comment, /[ \t\r]/],
 
   rules: {
-    document: ($) =>
-      seq(
-        repeat(choice($.pair, $.newline)),
-        repeat(choice($.table, $.array_table)),
-      ),
+    document: ($) => seq(repeat(choice($.pair, $.newline)), repeat(choice($.table, $.array_table))),
 
     comment: (_) => token(prec(-1, seq('#', /[^\x00-\x08\x0a-\x1f\x7f]*/))),
 
@@ -74,11 +70,7 @@ module.exports = grammar({
     pair: ($) => seq($._inline_pair, $._line_ending_or_eof),
 
     _inline_pair: ($) =>
-      seq(
-        field('key', choice($.dotted_key, $._key)),
-        '=',
-        field('value', $._inline_value),
-      ),
+      seq(field('key', choice($.dotted_key, $._key)), '=', field('value', $._inline_value)),
 
     _key: ($) => choice($.bare_key, $.quoted_key),
     dotted_key: ($) => prec.left(seq(choice($.dotted_key, $._key), '.', $._key)),
@@ -129,16 +121,11 @@ module.exports = grammar({
         $._multiline_basic_string_end,
       ),
 
-    escape_sequence: (_) =>
-      token.immediate(/\\([btnfr"\\]|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})/),
+    escape_sequence: (_) => token.immediate(/\\([btnfr"\\]|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})/),
     _escape_line_ending: (_) => token.immediate(seq(/\\/, /\r?\n/)),
 
     _literal_string: ($) =>
-      seq(
-        "'",
-        optional(token.immediate(LITERAL_STRING_CONTENT)),
-        token.immediate("'"),
-      ),
+      seq("'", optional(token.immediate(LITERAL_STRING_CONTENT)), token.immediate("'")),
 
     _multiline_literal_string: ($) =>
       seq(
@@ -153,8 +140,7 @@ module.exports = grammar({
         $._multiline_literal_string_end,
       ),
 
-    integer: (_) =>
-      choice(decimal_integer, hexadecimal_integer, octal_integer, binary_integer),
+    integer: (_) => choice(decimal_integer, hexadecimal_integer, octal_integer, binary_integer),
 
     float: (_) =>
       choice(
@@ -197,10 +183,7 @@ module.exports = grammar({
       seq(
         '{',
         optional(
-          seq(
-            alias($._inline_pair, $.pair),
-            repeat(seq(',', alias($._inline_pair, $.pair))),
-          ),
+          seq(alias($._inline_pair, $.pair), repeat(seq(',', alias($._inline_pair, $.pair)))),
         ),
         '}',
       ),

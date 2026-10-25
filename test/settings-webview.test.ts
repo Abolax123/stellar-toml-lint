@@ -11,11 +11,8 @@ import {
   renderSettingsHtml,
   SETTINGS_COMMAND,
   writeProjectConfigAtomic,
-} from '../editors/vscode/src/settings-webview.js';
-import type {
-  RuleInfo,
-  SettingsSnapshot,
-} from '../editors/vscode/src/settings-webview.js';
+} from '../editors/vscode/src/settings-webview.mjs';
+import type { RuleInfo, SettingsSnapshot } from '../editors/vscode/src/settings-webview.mjs';
 
 const RULES: RuleInfo[] = [
   {
@@ -127,7 +124,10 @@ describe('settings webview', () => {
     );
 
     expect(rules.map((r) => r.category).sort()).toEqual(['currencies', 'general']);
-    expect(rules.map((r) => r.id).sort()).toEqual(['currencies/issuance-exclusive', 'general/unknown-field']);
+    expect(rules.map((r) => r.id).sort()).toEqual([
+      'currencies/issuance-exclusive',
+      'general/unknown-field',
+    ]);
   });
 
   it('renders every rule with toggle, severity, and persistence script', () => {
@@ -136,7 +136,7 @@ describe('settings webview', () => {
     expect(html).toContain('general/unknown-field');
     expect(html).toContain('currencies/issuance-exclusive');
     expect(html).toContain('type="checkbox"');
-    expect(html).toContain('vscode.postMessage({ type: \'update\'');
+    expect(html).toContain("vscode.postMessage({ type: 'update'");
     expect(html).toContain('Treat warnings as errors');
     expect(html).toContain('Saving to VS Code workspace settings');
   });

@@ -182,7 +182,9 @@ export async function loadRuleCatalog(cli: CliCommand): Promise<RuleInfo[]> {
 }
 
 /** Groups rules by track, preserving the catalogue's order inside each group. */
-export function groupRules(rules: RuleInfo[]): { category: string; title: string; rules: RuleInfo[] }[] {
+export function groupRules(
+  rules: RuleInfo[],
+): { category: string; title: string; rules: RuleInfo[] }[] {
   const groups = new Map<string, RuleInfo[]>();
   for (const rule of rules) {
     const list = groups.get(rule.category) ?? [];
@@ -547,6 +549,8 @@ export async function showSettingsWebview(
 async function findProjectConfig(vscodeApi: VscodeApi): Promise<string | undefined> {
   const findFiles = vscodeApi.workspace.findFiles;
   if (findFiles === undefined) return undefined;
-  const results = await Promise.resolve(findFiles('**/.stellartomlrc.json', '**/node_modules/**', 1));
+  const results = await Promise.resolve(
+    findFiles('**/.stellartomlrc.json', '**/node_modules/**', 1),
+  );
   return results[0]?.fsPath;
 }
