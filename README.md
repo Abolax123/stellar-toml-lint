@@ -289,6 +289,21 @@ own description, the permitted values where SEP-1 enumerates them (`live`, `dead
 `private`), and a link to the section of SEP-1 that defines the field. Hovering whitespace, a
 comment, or a key SEP-1 does not define shows nothing at all.
 
+Hovering a line that names a Soroban contract (`[[CURRENCIES]].contract`, `WEB_AUTH_CONTRACT_ID`,
+or a `contract_id` key) can also show the contract's custom errors: every `#[contracterror]` enum
+in the deployed WASM's `contractspecv0` section, as a Markdown table of integer codes, case names,
+and doc comments, so `Error(Contract, #7)` is readable without opening the Rust source. This
+needs the Soroban RPC, so like `--check-contracts` it is off unless the editor opts in through
+`initializationOptions`:
+
+```json
+{ "checkContracts": true, "sorobanRpc": "https://soroban-testnet.stellar.org" }
+```
+
+`sorobanRpc` is optional; without it the endpoint is derived from the file's
+`NETWORK_PASSPHRASE`. Each contract is fetched once per session and cached. An unreachable RPC,
+an archived contract, or a module without a spec leaves the SEP-1 hover unchanged.
+
 ### Alerting a Slack or Discord channel
 
 ```console

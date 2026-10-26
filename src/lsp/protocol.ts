@@ -25,6 +25,20 @@ export interface LspInitializeResult {
   serverInfo?: { name: string; version: string };
 }
 
+/**
+ * Server settings an editor may pass in `initialize`. Contract lookups open
+ * network connections, so they stay off unless `checkContracts` is `true`,
+ * mirroring the CLI's `--check-contracts` / `--soroban-rpc`.
+ */
+export interface InitializationOptions {
+  checkContracts?: boolean;
+  sorobanRpc?: string;
+}
+
+export interface InitializeParams {
+  initializationOptions?: InitializationOptions | null;
+}
+
 export interface TextDocumentItem {
   uri: string;
   version: number;
