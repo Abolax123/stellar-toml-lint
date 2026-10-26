@@ -844,6 +844,15 @@ An upgrade function exported without admin protection or authorization checks em
 `soroban/unprotected-upgrade-function` (error), and an upgrade admin account secured by only a single signer
 emits `soroban/single-signer-upgrade-admin` (warning).
 
+Each deployed WASM also gets a static resource estimate, read from the module's sections without
+executing it. A Memory section that reserves more than 10 pages (640 KiB) at instantiation emits
+`soroban/excessive-static-memory-pages` (warning); the message also reports the static heap the
+Data section's initialisers occupy. The cyclomatic complexity of each exported SEP-41 function
+(`transfer`, `balance`, `approve`, …) is counted from its branch instructions (`if`, `br_if`, and
+each extra `br_table` target), and one above 50 emits `soroban/high-cyclomatic-complexity`
+(warning). The limit sits well above source-level thresholds because compiled WASM inlines helpers
+into each entry point. A module that cannot be fetched or parsed is skipped, not guessed at.
+
 In addition, under `--check-network`, Soroban Stellar Asset Contracts (SAC) total supply (`total_supply()`) is
 verified against the classic asset's issued supply from Horizon `/assets`. If the supplies diverge within a
 consistent ledger-close window, `soroban/supply-invariant-violation` (error) is emitted.

@@ -18,6 +18,8 @@ import { contractIdsOf } from './rules/currencies.js';
 import { webAuthContractIdOf } from './rules/general.js';
 import { auditUpgradeSecurity, upgradeAuditorRules } from './soroban/upgrade-auditor.js';
 import { auditSupplyInvariant, supplyInvariantRules } from './soroban/supply-invariant.js';
+import { auditWasmBudget, budgetEstimatorRules } from './soroban/budget-estimator.js';
+import type { BudgetOptions } from './soroban/budget-estimator.js';
 
 /** Roughly a day of ledgers at ~5 seconds per ledger. */
 const EXPIRING_WINDOW_LEDGERS = 17_280;
@@ -338,6 +340,44 @@ export async function checkContractTtl(
 }
 
 /**
+ * The WASM bytes deployed behind `contractId`: the instance names its code
+ * hash, and the code entry holds the module. `undefined` when the RPC cannot
+ * answer, either entry is missing, or the contract is a Stellar Asset
+ * Contract (which has no WASM).
+ */
+export async function fetchContractWasm(
+  contractId: string,
+  rpcUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Buffer | undefined> {
+  const instance = await queryLedgerEntry(rpcUrl, contractDataInstanceKey(contractId), fetchImpl);
+  if (instance === undefined || instance.liveUntil === undefined) return undefined;
+
+  const wasmHash = wasmHashOf(instance.entryXdr);
+  if (wasmHash === undefined) return undefined;
+
+  const code = await queryLedgerEntry(rpcUrl, contractCodeKey(wasmHash), fetchImpl);
+  if (code === undefined) return undefined;
+
+  return wasmBytesOf(code.entryXdr);
+}
+
+/**
+ * Projects the static resource budget of the WASM behind `contractId` — see
+ * `soroban/budget-estimator.ts`. Silent when the module cannot be fetched or
+ * parsed.
+ */
+export async function auditContractBudget(
+  contractId: string,
+  rpcUrl: string,
+  fetchImpl: typeof fetch = fetch,
+  options: BudgetOptions = {},
+): Promise<Diagnostic[]> {
+  const wasm = await fetchContractWasm(contractId, rpcUrl, fetchImpl);
+  return wasm === undefined ? [] : auditWasmBudget(contractId, wasm, options);
+}
+
+/**
  * Verifies that the contract at `WEB_AUTH_CONTRACT_ID` exports the SEP-45
  * `web_auth_verify` function.
  *
@@ -466,9 +506,11 @@ export const sorobanRules: Rule[] = [
   ...sorobanTtlRules,
   ...upgradeAuditorRules,
   ...supplyInvariantRules,
+  ...budgetEstimatorRules,
 ];
 
 export const sorobanRuleIds: readonly string[] = sorobanRules.map((rule) => rule.id);
 
 export { auditUpgradeSecurity, upgradeAuditorRules };
 export { auditSupplyInvariant, supplyInvariantRules };
+export { budgetEstimatorRules };

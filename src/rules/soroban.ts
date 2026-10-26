@@ -1,6 +1,6 @@
 import { Networks } from '@stellar/stellar-base';
 import type { Diagnostic, RuleOverrides } from '../types.js';
-import { checkContracts as checkContractsBase } from '../soroban.js';
+import { auditContractBudget, checkContracts as checkContractsBase } from '../soroban.js';
 import { auditUpgradeSecurity } from '../soroban/upgrade-auditor.js';
 import { auditSupplyInvariant } from '../soroban/supply-invariant.js';
 import { rpcUrlFor } from './display-decimals-audit.js';
@@ -14,7 +14,8 @@ export interface SorobanAuditOptions {
 }
 
 /**
- * Audits every contract declared in the file (TTL, SEP-45 interface, Upgrade Security, and Supply Invariant).
+ * Audits every contract declared in the file (TTL, SEP-45 interface, Upgrade Security, static
+ * resource budget, and Supply Invariant).
  */
 export async function checkContracts(
   doc: Record<string, unknown>,
@@ -53,6 +54,10 @@ export async function checkContracts(
       { rules: options.rules },
     );
     diagnostics.push(...upgradeDiagnostics);
+
+    diagnostics.push(
+      ...(await auditContractBudget(target.id, rpcUrl, fetchImpl, { rules: options.rules })),
+    );
   }
 
   // Audit supply invariants for assets declared under [[CURRENCIES]]

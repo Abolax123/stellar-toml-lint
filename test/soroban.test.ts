@@ -246,6 +246,8 @@ describe('Soroban contract TTL audit', () => {
       { id: 'soroban/unprotected-upgrade-function', severity: 'error' },
       { id: 'soroban/single-signer-upgrade-admin', severity: 'warning' },
       { id: 'soroban/supply-invariant-violation', severity: 'error' },
+      { id: 'soroban/excessive-static-memory-pages', severity: 'warning' },
+      { id: 'soroban/high-cyclomatic-complexity', severity: 'warning' },
     ]);
   });
 });
